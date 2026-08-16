@@ -73,7 +73,7 @@ const PROFILE_FIELDS = `
   id, email, display_name, first_name, last_name, avatar_url, bio,
   date_of_birth, gender, profile_color, location, country_code, phone,
   profile_visibility, map_visibility, referral_code, referred_by,
-  featured_badge_id,
+  featured_badge_id, anonymous_mode,
   total_distance_km, total_territory_km2, rival_count, created_at
 `;
 
@@ -101,6 +101,7 @@ export async function updateMe(
     profileVisibility?: 'public' | 'followers';
     mapVisibility?: 'everyone' | 'crew' | 'nobody';
     featuredBadgeId?: string | null;
+    anonymousMode?: boolean;
   }
 ) {
   const rows = await query<any>(
@@ -118,6 +119,7 @@ export async function updateMe(
             profile_visibility  = COALESCE($12, profile_visibility),
             map_visibility      = COALESCE($13, map_visibility),
             featured_badge_id   = CASE WHEN $14::boolean THEN $15 ELSE featured_badge_id END,
+            anonymous_mode      = CASE WHEN $16::boolean THEN $17::boolean ELSE anonymous_mode END,
             updated_at          = now()
       WHERE id = $1
       RETURNING ${PROFILE_FIELDS}`,
@@ -137,6 +139,8 @@ export async function updateMe(
       input.mapVisibility ?? null,
       input.featuredBadgeId !== undefined,
       input.featuredBadgeId ?? null,
+      input.anonymousMode !== undefined,
+      input.anonymousMode ?? null,
     ]
   );
   return rows[0] ?? null;

@@ -77,6 +77,7 @@ export async function authRoutes(app: FastifyInstance) {
           profileVisibility: { type: 'string', enum: ['public', 'followers'] },
           mapVisibility: { type: 'string', enum: ['everyone', 'crew', 'nobody'] },
           featuredBadgeId: { type: ['string', 'null'], maxLength: 20 },
+          anonymousMode: { type: 'boolean' },
         },
       },
     },

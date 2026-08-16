@@ -23,6 +23,7 @@ import { progressRoutes } from './modules/progress/progress.routes';
 import { staffAuthRoutes } from './modules/staff-auth/staff-auth.routes';
 import { staffUsersRoutes } from './modules/staff-users/staff-users.routes';
 import { uploadsRoutes } from './modules/uploads/uploads.routes';
+import { notificationsRoutes } from './modules/notifications/notifications.routes';
 
 async function main() {
   // trustProxy: true porque em produção a API roda atrás do proxy do
@@ -78,6 +79,7 @@ async function main() {
   await app.register(staffAuthRoutes);
   await app.register(staffUsersRoutes);
   await app.register(uploadsRoutes);
+  await app.register(notificationsRoutes);
 
   await app.listen({ port: env.port, host: '0.0.0.0' });
 }
