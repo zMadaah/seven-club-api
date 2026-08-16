@@ -30,6 +30,8 @@ interface LobbyRow {
   name: string;
   picture_url: string | null;
   creator_id: string;
+  creator_name: string;
+  creator_avatar_url: string | null;
   allow_previous_imports: boolean;
   allow_member_invitations: boolean;
   in_game_chat_enabled: boolean;
@@ -45,6 +47,8 @@ function mapLobbyRow(row: LobbyRow) {
     name: row.name,
     pictureUri: row.picture_url ?? undefined,
     creatorId: row.creator_id,
+    creatorName: row.creator_name,
+    creatorAvatarUrl: row.creator_avatar_url ?? '',
     allowPreviousImports: row.allow_previous_imports,
     allowMemberInvitations: row.allow_member_invitations,
     inGameChatEnabled: row.in_game_chat_enabled,
@@ -59,6 +63,8 @@ const LOBBY_SELECT = `
   SELECT l.id, l.name, l.picture_url, l.creator_id, l.allow_previous_imports,
          l.allow_member_invitations, l.in_game_chat_enabled, l.max_lobby_size,
          l.invite_code, l.created_at,
+         creator.display_name AS creator_name,
+         creator.avatar_url AS creator_avatar_url,
          COALESCE(
            (SELECT json_agg(json_build_object('id', u.id, 'name', u.display_name, 'avatarUrl', u.avatar_url))
               FROM lobby_members lm
@@ -67,6 +73,7 @@ const LOBBY_SELECT = `
            '[]'::json
          ) AS members
     FROM lobbies l
+    JOIN app_users creator ON creator.id = l.creator_id
 `;
 
 export async function listMyLobbies(userId: string) {
