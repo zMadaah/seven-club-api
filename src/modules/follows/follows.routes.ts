@@ -1,9 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
-import { followUser, unfollowUser, searchUsers, FollowError } from './follows.service';
+import { followUser, unfollowUser, searchUsers, getFollowCounts, FollowError } from './follows.service';
 
 export async function followsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
+
+  app.get('/follows/counts', async (request) => {
+    return getFollowCounts(request.userId!);
+  });
 
   app.post('/follows/:userId', async (request, reply) => {
     const { userId } = request.params as { userId: string };

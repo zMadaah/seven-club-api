@@ -37,6 +37,18 @@ export async function unfollowUser(followerId: string, followeeId: string) {
   await query(`DELETE FROM follows WHERE follower_id = $1 AND followee_id = $2`, [followerId, followeeId]);
 }
 
+export async function getFollowCounts(userId: string) {
+  const [followingRows, followersRows] = await Promise.all([
+    query<{ count: string }>(`SELECT COUNT(*) AS count FROM follows WHERE follower_id = $1`, [userId]),
+    query<{ count: string }>(`SELECT COUNT(*) AS count FROM follows WHERE followee_id = $1`, [userId]),
+  ]);
+
+  return {
+    followingCount: Number(followingRows[0].count),
+    followersCount: Number(followersRows[0].count),
+  };
+}
+
 interface UserSearchRow {
   id: string;
   display_name: string;
