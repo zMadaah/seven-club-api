@@ -16,6 +16,7 @@ import { postsRoutes } from './modules/posts/posts.routes';
 import { followsRoutes } from './modules/follows/follows.routes';
 import { leaderboardRoutes } from './modules/leaderboard/leaderboard.routes';
 import { lobbiesRoutes } from './modules/lobbies/lobbies.routes';
+import { lobbyChatRoutes } from './modules/lobbies/lobby-chat.routes';
 import { blocksRoutes } from './modules/blocks/blocks.routes';
 import { referralsRoutes } from './modules/referrals/referrals.routes';
 import { supportRoutes, supportStaffRoutes } from './modules/support/support.routes';
@@ -71,6 +72,7 @@ async function main() {
   await app.register(followsRoutes);
   await app.register(leaderboardRoutes);
   await app.register(lobbiesRoutes);
+  await app.register(lobbyChatRoutes);
   await app.register(blocksRoutes);
   await app.register(referralsRoutes);
   await app.register(supportRoutes);

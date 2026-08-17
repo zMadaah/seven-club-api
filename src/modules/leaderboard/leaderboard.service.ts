@@ -1,6 +1,8 @@
 import { query } from '../../db/pool';
 
-export type LeaderboardScope = 'country' | 'area' | 'friends';
+export class LeaderboardError extends Error {}
+
+export type LeaderboardScope = 'country' | 'area' | 'friends' | 'lobby';
 
 function flagEmoji(countryCode: string | null): string {
   if (!countryCode || countryCode.length !== 2) return '';
@@ -8,8 +10,9 @@ function flagEmoji(countryCode: string | null): string {
   return String.fromCodePoint(...codePoints);
 }
 
-// Monta o "pool" de concorrentes conforme o escopo. Os três casos são SQL
-// fixo (não vem de input do usuário), então interpolar aqui é seguro.
+// Monta o "pool" de concorrentes conforme o escopo. Os quatro casos são
+// SQL fixo (não vem de input do usuário), então interpolar aqui é seguro.
+// "lobby" é o único que usa um terceiro parâmetro ($3, o lobbyId).
 function poolCte(scope: LeaderboardScope): string {
   if (scope === 'friends') {
     return `pool AS (
@@ -25,6 +28,14 @@ function poolCte(scope: LeaderboardScope): string {
        WHERE status = 'active'
          AND country_code IS NOT NULL
          AND country_code = (SELECT country_code FROM app_users WHERE id = $1)
+    )`;
+  }
+
+  if (scope === 'lobby') {
+    return `pool AS (
+      SELECT creator_id AS id FROM lobbies WHERE id = $3
+      UNION
+      SELECT user_id AS id FROM lobby_members WHERE lobby_id = $3
     )`;
   }
 
@@ -52,8 +63,28 @@ interface LeaderboardRow {
 export async function getLeaderboard(
   userId: string,
   scope: LeaderboardScope,
-  activityType: 'run' | 'ride'
+  activityType: 'run' | 'ride',
+  lobbyId?: string
 ) {
+  if (scope === 'lobby') {
+    if (!lobbyId) throw new LeaderboardError('Escopo "lobby" exige lobbyId.');
+
+    // só quem faz parte do lobby (dono ou membro) pode ver esse ranking —
+    // é um espaço privado, não vale expor pra quem não está dentro
+    const membership = await query(
+      `SELECT 1 FROM lobbies WHERE id = $1 AND creator_id = $2
+       UNION
+       SELECT 1 FROM lobby_members WHERE lobby_id = $1 AND user_id = $2`,
+      [lobbyId, userId]
+    );
+    if (membership.length === 0) {
+      throw new LeaderboardError('Você não faz parte desse lobby.');
+    }
+  }
+
+  const params: (string | undefined)[] = [userId, activityType];
+  if (scope === 'lobby') params.push(lobbyId);
+
   const rows = await query<LeaderboardRow>(
     `WITH ${poolCte(scope)},
      totals AS (
@@ -70,7 +101,7 @@ export async function getLeaderboard(
        FROM totals
       ORDER BY area_m2 DESC
       LIMIT 500`,
-    [userId, activityType]
+    params
   );
 
   const mapped = rows.map((r) => ({

@@ -20,6 +20,8 @@ const lobbyBodySchema = {
     allowMemberInvitations: { type: 'boolean' },
     inGameChatEnabled: { type: 'boolean' },
     maxLobbySize: { type: ['integer', 'null'], minimum: 2, maximum: 500 },
+    startsAt: { type: ['string', 'null'], format: 'date-time' },
+    endsAt: { type: ['string', 'null'], format: 'date-time' },
   },
 };
 
@@ -35,6 +37,8 @@ export async function lobbiesRoutes(app: FastifyInstance) {
     const lobby = await createLobby(request.userId!, {
       ...body,
       maxLobbySize: body.maxLobbySize ?? null,
+      startsAt: body.startsAt ?? null,
+      endsAt: body.endsAt ?? null,
     });
     return reply.code(201).send(lobby);
   });
@@ -46,6 +50,8 @@ export async function lobbiesRoutes(app: FastifyInstance) {
       const lobby = await updateLobby(request.userId!, id, {
         ...body,
         maxLobbySize: body.maxLobbySize ?? null,
+        startsAt: body.startsAt ?? null,
+        endsAt: body.endsAt ?? null,
       });
       return lobby;
     } catch (err) {

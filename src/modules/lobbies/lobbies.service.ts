@@ -37,6 +37,8 @@ interface LobbyRow {
   in_game_chat_enabled: boolean;
   max_lobby_size: number | null;
   invite_code: string;
+  starts_at: string | null;
+  ends_at: string | null;
   created_at: string;
   members: { id: string; name: string; avatarUrl: string }[];
 }
@@ -54,6 +56,8 @@ function mapLobbyRow(row: LobbyRow) {
     inGameChatEnabled: row.in_game_chat_enabled,
     maxLobbySize: row.max_lobby_size,
     inviteCode: row.invite_code,
+    startsAt: row.starts_at ? new Date(row.starts_at).toISOString() : null,
+    endsAt: row.ends_at ? new Date(row.ends_at).toISOString() : null,
     members: row.members ?? [],
     createdAt: new Date(row.created_at).getTime(),
   };
@@ -62,7 +66,7 @@ function mapLobbyRow(row: LobbyRow) {
 const LOBBY_SELECT = `
   SELECT l.id, l.name, l.picture_url, l.creator_id, l.allow_previous_imports,
          l.allow_member_invitations, l.in_game_chat_enabled, l.max_lobby_size,
-         l.invite_code, l.created_at,
+         l.invite_code, l.starts_at, l.ends_at, l.created_at,
          creator.display_name AS creator_name,
          creator.avatar_url AS creator_avatar_url,
          COALESCE(
@@ -96,6 +100,8 @@ export async function createLobby(
     allowMemberInvitations: boolean;
     inGameChatEnabled: boolean;
     maxLobbySize: number | null;
+    startsAt?: string | null;
+    endsAt?: string | null;
   }
 ) {
   const inviteCode = await generateUniqueInviteCode();
@@ -103,8 +109,8 @@ export async function createLobby(
   const rows = await query<{ id: string }>(
     `INSERT INTO lobbies
        (name, picture_url, creator_id, allow_previous_imports, allow_member_invitations,
-        in_game_chat_enabled, max_lobby_size, invite_code)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        in_game_chat_enabled, max_lobby_size, invite_code, starts_at, ends_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING id`,
     [
       input.name,
@@ -115,6 +121,8 @@ export async function createLobby(
       input.inGameChatEnabled,
       input.maxLobbySize,
       inviteCode,
+      input.startsAt ?? null,
+      input.endsAt ?? null,
     ]
   );
 
@@ -138,6 +146,8 @@ export async function updateLobby(
     allowMemberInvitations: boolean;
     inGameChatEnabled: boolean;
     maxLobbySize: number | null;
+    startsAt?: string | null;
+    endsAt?: string | null;
   }
 ) {
   await requireOwnedLobby(userId, lobbyId);
@@ -145,7 +155,8 @@ export async function updateLobby(
   await query(
     `UPDATE lobbies
         SET name = $1, picture_url = $2, allow_previous_imports = $3,
-            allow_member_invitations = $4, in_game_chat_enabled = $5, max_lobby_size = $6
+            allow_member_invitations = $4, in_game_chat_enabled = $5, max_lobby_size = $6,
+            starts_at = $8, ends_at = $9
       WHERE id = $7`,
     [
       input.name,
@@ -155,6 +166,8 @@ export async function updateLobby(
       input.inGameChatEnabled,
       input.maxLobbySize,
       lobbyId,
+      input.startsAt ?? null,
+      input.endsAt ?? null,
     ]
   );
 
