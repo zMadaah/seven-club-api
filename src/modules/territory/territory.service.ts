@@ -1,5 +1,5 @@
 import { pool } from '../../db/pool';
-import { cellsForLoop, cellAreaM2, cellCenter } from '../../utils/h3';
+import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary } from '../../utils/h3';
 import { LatLng } from '../../utils/geo';
 
 export interface CaptureResult {
@@ -81,4 +81,56 @@ export async function captureTerritoryForActivity(params: {
   }
 
   return { captureM2, cellsCaptured, cellsStolenFromOthers };
+}
+
+export interface TerritoryCellView {
+  h3Index: string;
+  ownerId: string;
+  ownerName: string;
+  ownerColor: string;
+  isMine: boolean;
+  boundary: LatLng[];
+}
+
+// Território pra desenhar no mapa (Home, tela de atividade em andamento
+// etc.) — diferente de GET /territory, que devolve só as SUAS atividades
+// com captura. Aqui é "o que existe nessa região do mapa, de quem for".
+// Limitado a 3000 células por chamada — a resolução 10 (~65m/célula) gera
+// muita coisa se a pessoa afastar o zoom demais; o client precisa
+// re-buscar conforme move o mapa, não tentar carregar o mundo inteiro de
+// uma vez.
+export async function getTerritoryCellsInBounds(params: {
+  activityType: 'run' | 'ride';
+  requesterId: string;
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}): Promise<TerritoryCellView[]> {
+  const { activityType, requesterId, minLat, maxLat, minLng, maxLng } = params;
+
+  const { rows } = await pool.query<{
+    h3_index: string;
+    owner_user_id: string;
+    display_name: string;
+    profile_color: string | null;
+  }>(
+    `SELECT tc.h3_index, tc.owner_user_id, u.display_name, u.profile_color
+       FROM territory_cells tc
+       JOIN app_users u ON u.id = tc.owner_user_id
+      WHERE tc.activity_type = $1
+        AND tc.owner_user_id IS NOT NULL
+        AND ST_Intersects(tc.center, ST_MakeEnvelope($2, $3, $4, $5, 4326)::geography)
+      LIMIT 3000`,
+    [activityType, minLng, minLat, maxLng, maxLat]
+  );
+
+  return rows.map((r) => ({
+    h3Index: r.h3_index,
+    ownerId: r.owner_user_id,
+    ownerName: r.display_name,
+    ownerColor: r.profile_color ?? '#999999',
+    isMine: r.owner_user_id === requesterId,
+    boundary: cellBoundary(r.h3_index),
+  }));
 }

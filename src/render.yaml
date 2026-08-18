@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: seven-club-api-homolog
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: ACCESS_TOKEN_TTL
+        value: 15m
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: "30"
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: NODE_ENV
+        value: development

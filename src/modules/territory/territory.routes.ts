@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
 import { pool } from '../../db/pool';
 import { formatDuration } from '../../utils/format';
+import { getTerritoryCellsInBounds } from './territory.service';
 
 export async function territoryRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -40,6 +41,27 @@ export async function territoryRoutes(app: FastifyInstance) {
         distanceKm: Number(r.distance_meters) / 1000,
         durationLabel: formatDuration(r.duration_seconds),
       };
+    });
+  });
+
+  // Território pra desenhar no mapa — mina + de todo mundo, dentro da
+  // região que o app está mostrando na tela naquele momento.
+  app.get('/territory/cells', async (request, reply) => {
+    const { activityType, minLat, maxLat, minLng, maxLng } = request.query as Record<string, string>;
+    const type = activityType === 'ride' ? 'ride' : 'run';
+
+    const bounds = [minLat, maxLat, minLng, maxLng].map(Number);
+    if (bounds.some((n) => Number.isNaN(n))) {
+      return reply.code(400).send({ error: 'minLat, maxLat, minLng, maxLng são obrigatórios.' });
+    }
+
+    return getTerritoryCellsInBounds({
+      activityType: type,
+      requesterId: request.userId!,
+      minLat: bounds[0],
+      maxLat: bounds[1],
+      minLng: bounds[2],
+      maxLng: bounds[3],
     });
   });
 }

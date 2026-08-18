@@ -22,3 +22,10 @@ export function cellCenter(h3Index: string): LatLng {
   const [latitude, longitude] = h3.cellToLatLng(h3Index);
   return { latitude, longitude };
 }
+
+// Vértices do hexágono, prontos pra virar um Polygon no mapa — calcula
+// aqui (não no client) pra não precisar do h3-js no app também, o app só
+// recebe coordenadas já prontas de desenhar.
+export function cellBoundary(h3Index: string): LatLng[] {
+  return h3.cellToBoundary(h3Index).map(([latitude, longitude]) => ({ latitude, longitude }));
+}
