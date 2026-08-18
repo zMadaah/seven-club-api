@@ -4,4 +4,4 @@ dist/
 .env.homolog
 .env.production
 *.log
-uploads/
+/uploads/
