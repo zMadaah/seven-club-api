@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
-import { registerStaff, loginStaff, getStaffMe, StaffAuthError } from './staff-auth.service';
+import { registerStaff, loginStaff, getStaffMe, deleteStaff, StaffAuthError } from './staff-auth.service';
 
 export async function staffAuthRoutes(app: FastifyInstance) {
   // ATENÇÃO — sem proteção nenhuma além do rate limit: qualquer um que
@@ -58,5 +58,12 @@ export async function staffAuthRoutes(app: FastifyInstance) {
     const staff = await getStaffMe(request.staffId!);
     if (!staff) return reply.code(404).send({ error: 'Conta de staff não encontrada.' });
     return staff;
+  });
+
+  // Apaga só a PRÓPRIA conta (identificada pelo token) — pra limpar
+  // contas de teste em homologação sem precisar mexer direto no banco.
+  app.delete('/auth/staff/me', { preHandler: authenticateStaff }, async (request, reply) => {
+    await deleteStaff(request.staffId!);
+    return reply.code(204).send();
   });
 }

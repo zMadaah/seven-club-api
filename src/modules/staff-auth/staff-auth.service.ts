@@ -42,3 +42,10 @@ export async function getStaffMe(staffId: string) {
   const rows = await query<StaffRow>(`SELECT id, name, email FROM staff_users WHERE id = $1`, [staffId]);
   return rows[0] ?? null;
 }
+
+// Só apaga a PRÓPRIA conta (via token), não qualquer uma por id — assim
+// não precisa de nenhuma checagem de permissão extra pra isso ser seguro
+// de deixar disponível em homologação.
+export async function deleteStaff(staffId: string) {
+  await query(`DELETE FROM staff_users WHERE id = $1`, [staffId]);
+}
