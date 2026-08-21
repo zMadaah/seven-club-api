@@ -107,3 +107,40 @@ export async function getTerritoryDominance(activityType: 'run' | 'ride') {
     cellsOwned: Number(r.cells),
   }));
 }
+
+interface DailySummaryRow {
+  day: string;
+  activity_count: string;
+  distance_km: string;
+  capture_km2: string;
+}
+
+// Agregado por dia — diferente de listActivitiesForStaff (lista paginada,
+// item por item), essa função é feita especificamente pra alimentar
+// gráfico de tendência: todos os dias do período de uma vez, já somados.
+export async function getActivitiesDailySummary(params: {
+  activityType: 'run' | 'ride';
+  days: number;
+}) {
+  const { activityType, days } = params;
+
+  const rows = await query<DailySummaryRow>(
+    `SELECT date_trunc('day', created_at) AS day,
+            COUNT(*) AS activity_count,
+            COALESCE(SUM(distance_meters), 0) / 1000.0 AS distance_km,
+            COALESCE(SUM(capture_m2), 0) / 1000000.0 AS capture_km2
+       FROM activities
+      WHERE activity_type = $1
+        AND created_at >= now() - ($2 || ' days')::interval
+      GROUP BY day
+      ORDER BY day ASC`,
+    [activityType, days]
+  );
+
+  return rows.map((r) => ({
+    day: r.day,
+    activityCount: Number(r.activity_count),
+    distanceKm: Number(r.distance_km),
+    captureKm2: Number(r.capture_km2),
+  }));
+}

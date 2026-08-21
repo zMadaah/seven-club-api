@@ -2,6 +2,7 @@ import { pool } from '../../db/pool';
 import { totalDistance, isLoopClosed, LatLng } from '../../utils/geo';
 import { formatPace } from '../../utils/format';
 import { captureTerritoryForActivity } from '../territory/territory.service';
+import { grantXp } from '../progress/xp.service';
 
 export interface SubmitActivityInput {
   userId: string;
@@ -65,6 +66,18 @@ export async function submitActivity(input: SubmitActivityInput) {
       `UPDATE app_users SET total_distance_km = total_distance_km + $1 WHERE id = $2`,
       [distanceMeters / 1000, userId]
     );
+  }
+
+  // XP v1, propositalmente simples (mesmo espírito do EXP_PER_LEVEL em
+  // xp.service.ts): 1 XP por km percorrido + 1 XP por 100m² de
+  // território capturado. Antes disso, registrar atividade não gerava
+  // XP nenhum — só desafios e insígnias concediam, deixando "correr de
+  // verdade" sem recompensa direta no nível.
+  const distanceXp = Math.floor(distanceMeters / 1000);
+  const territoryXp = Math.floor(captureM2 / 100);
+  const totalXpEarned = distanceXp + territoryXp;
+  if (totalXpEarned > 0) {
+    await grantXp(userId, 'activity', activityId, totalXpEarned);
   }
 
   return {

@@ -57,6 +57,7 @@ interface LeaderboardRow {
   avatar_url: string | null;
   country_code: string | null;
   area_m2: string;
+  distance_km: string;
   rank: string;
 }
 
@@ -89,14 +90,20 @@ export async function getLeaderboard(
     `WITH ${poolCte(scope)},
      totals AS (
        SELECT u.id AS user_id, u.display_name, u.avatar_url, u.country_code,
-              COALESCE(SUM(tc.cell_area_m2), 0) AS area_m2
+              COALESCE(SUM(tc.cell_area_m2), 0) AS area_m2,
+              COALESCE(
+                (SELECT SUM(a.distance_meters) / 1000.0
+                   FROM activities a
+                  WHERE a.user_id = u.id AND a.activity_type = $2),
+                0
+              ) AS distance_km
          FROM pool p
          JOIN app_users u ON u.id = p.id
          LEFT JOIN territory_cells tc
            ON tc.owner_user_id = u.id AND tc.activity_type = $2
         GROUP BY u.id, u.display_name, u.avatar_url, u.country_code
      )
-     SELECT user_id, display_name, avatar_url, country_code, area_m2,
+     SELECT user_id, display_name, avatar_url, country_code, area_m2, distance_km,
             RANK() OVER (ORDER BY area_m2 DESC) AS rank
        FROM totals
       ORDER BY area_m2 DESC
@@ -112,6 +119,7 @@ export async function getLeaderboard(
     countryFlag: flagEmoji(r.country_code),
     countryCode: r.country_code ?? '',
     territoryKm2: Number(r.area_m2) / 1_000_000,
+    distanceKm: Number(r.distance_km),
     activityType,
   }));
 

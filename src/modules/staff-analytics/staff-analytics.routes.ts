@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
-import { listActivitiesForStaff, getTerritoryDominance } from './staff-analytics.service';
+import { listActivitiesForStaff, getTerritoryDominance, getActivitiesDailySummary } from './staff-analytics.service';
 
 export async function staffAnalyticsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticateStaff);
@@ -18,6 +18,12 @@ export async function staffAnalyticsRoutes(app: FastifyInstance) {
       activityType,
       userId,
     });
+  });
+
+  app.get('/analytics/activities/summary', async (request) => {
+    const { activityType, days } = request.query as { activityType?: string; days?: string };
+    const type = activityType === 'ride' ? 'ride' : 'run';
+    return getActivitiesDailySummary({ activityType: type, days: Math.min(Number(days) || 30, 90) });
   });
 
   app.get('/analytics/territory', async (request) => {
