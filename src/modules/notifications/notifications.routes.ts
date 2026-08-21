@@ -1,30 +1,17 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
-import { getNotificationPreferences, updateNotificationPreferences } from './notifications.service';
-
-const PREFERENCE_KEYS = [
-  'heartedActivity', 'heartedStatus', 'commentOnActivity', 'commentOnStatus',
-  'repliedToComment', 'followingYou', 'followRequest', 'questionAnswered',
-  'privateLobbyInvite', 'clubInvite', 'territoryStolenSingle', 'territoryStolenPrivateLobby',
-  'referralCodeUsed', 'marketingAnnouncements', 'captureThreshold5OrLess', 'captureThreshold5To20',
-];
+import { listNotifications, markNotificationRead } from './notifications.service';
 
 export async function notificationsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
 
-  app.get('/notifications/preferences', async (request) => {
-    return getNotificationPreferences(request.userId!);
+  app.get('/notifications', async (request) => {
+    return listNotifications(request.userId!);
   });
 
-  app.patch('/notifications/preferences', {
-    schema: {
-      body: {
-        type: 'object',
-        properties: Object.fromEntries(PREFERENCE_KEYS.map((key) => [key, { type: 'boolean' }])),
-        additionalProperties: false,
-      },
-    },
-  }, async (request) => {
-    return updateNotificationPreferences(request.userId!, request.body as any);
+  app.patch('/notifications/:id/read', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await markNotificationRead(request.userId!, id);
+    return reply.code(204).send();
   });
 }

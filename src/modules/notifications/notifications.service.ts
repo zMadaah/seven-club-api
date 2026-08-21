@@ -1,55 +1,72 @@
 import { query } from '../../db/pool';
 
-// Espelha DEFAULT_NOTIFICATION_PREFERENCES do app
-// (types/notificationPreference.ts) — mesmo formato, mesmos defaults.
-// Isto é só a PREFERÊNCIA (o que a pessoa quer receber). O envio de
-// verdade (push notification disparada quando alguém curte, comenta,
-// rouba território etc.) é uma peça de infraestrutura própria — precisa
-// de registro de token de push (Expo), e um gatilho em cada evento
-// (curtida, comentário, roubo...) que dispare o envio respeitando essa
-// preferência. Não existe ainda; isto aqui só guarda o que a pessoa
-// escolheu, pronto pra quando o envio for construído.
-export interface NotificationPreferences {
-  heartedActivity: boolean;
-  heartedStatus: boolean;
-  commentOnActivity: boolean;
-  commentOnStatus: boolean;
-  repliedToComment: boolean;
-  followingYou: boolean;
-  followRequest: boolean;
-  questionAnswered: boolean;
-  privateLobbyInvite: boolean;
-  clubInvite: boolean;
-  territoryStolenSingle: boolean;
-  territoryStolenPrivateLobby: boolean;
-  referralCodeUsed: boolean;
-  marketingAnnouncements: boolean;
-  captureThreshold5OrLess: boolean;
-  captureThreshold5To20: boolean;
+export type NotificationCategory = 'territory' | 'invite' | 'community' | 'sevenclub';
+
+interface NotificationRow {
+  id: string;
+  category: NotificationCategory;
+  title: string;
+  subtitle: string;
+  read: boolean;
+  created_at: string;
 }
 
-export async function getNotificationPreferences(userId: string): Promise<NotificationPreferences> {
-  const rows = await query<{ notification_preferences: NotificationPreferences }>(
-    `SELECT notification_preferences FROM app_users WHERE id = $1`,
+// "há 12 min" / "há 2 h" / "há 3 d" — mesmo estilo textual que o mock
+// antigo já usava (timeAgo), calculado a partir de created_at real.
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return 'agora';
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  const days = Math.floor(hours / 24);
+  return `${days} d`;
+}
+
+function mapNotification(r: NotificationRow) {
+  return {
+    id: r.id,
+    category: r.category,
+    title: r.title,
+    subtitle: r.subtitle,
+    timeAgo: timeAgo(r.created_at),
+    read: r.read,
+  };
+}
+
+export async function listNotifications(userId: string) {
+  const rows = await query<NotificationRow>(
+    `SELECT id, category, title, subtitle, read, created_at
+       FROM notifications
+      WHERE user_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100`,
     [userId]
   );
-  return rows[0].notification_preferences;
+  return rows.map(mapNotification);
 }
 
-// Atualização parcial: só sobrescreve as chaves enviadas, preserva o
-// resto — assim o app pode mandar só o toggle que a pessoa mexeu, sem
-// precisar reenviar as 16 chaves toda vez.
-export async function updateNotificationPreferences(
-  userId: string,
-  patch: Partial<NotificationPreferences>
-): Promise<NotificationPreferences> {
-  const rows = await query<{ notification_preferences: NotificationPreferences }>(
-    `UPDATE app_users
-        SET notification_preferences = notification_preferences || $2::jsonb,
-            updated_at = now()
-      WHERE id = $1
-      RETURNING notification_preferences`,
-    [userId, JSON.stringify(patch)]
+export async function markNotificationRead(userId: string, notificationId: string) {
+  await query(`UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2`, [
+    notificationId,
+    userId,
+  ]);
+}
+
+// Chamada tanto pelo envio de teste do dashboard quanto por qualquer
+// evento real do app no futuro (convite de lobby, roubo de território
+// etc.) — um único lugar que grava no histórico, pra tudo que gera
+// notificação já aparecer na tela de notificações do usuário.
+export async function createNotification(params: {
+  userId: string;
+  category: NotificationCategory;
+  title: string;
+  subtitle: string;
+}) {
+  await query(
+    `INSERT INTO notifications (user_id, category, title, subtitle)
+     VALUES ($1, $2, $3, $4)`,
+    [params.userId, params.category, params.title, params.subtitle]
   );
-  return rows[0].notification_preferences;
 }

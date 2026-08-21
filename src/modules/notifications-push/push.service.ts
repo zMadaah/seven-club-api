@@ -1,4 +1,5 @@
 import { query } from '../../db/pool';
+import { createNotification } from '../notifications/notifications.service';
 
 export async function registerPushToken(userId: string, token: string) {
   await query(`UPDATE app_users SET expo_push_token = $1 WHERE id = $2`, [token, userId]);
@@ -50,9 +51,15 @@ export async function sendTestNotificationToUser(userId: string, title: string, 
   if (rows.length === 0) {
     throw new Error('Usuário não encontrado.');
   }
+
+  // Grava no histórico independente de ter token de push registrado —
+  // assim a pessoa vê a notificação na tela do app (sino) mesmo que o
+  // push em si (aviso do sistema operacional) não tenha sido entregue.
+  await createNotification({ userId, category: 'sevenclub', title, subtitle: body });
+
   if (!rows[0].expo_push_token) {
     throw new Error(
-      `${rows[0].display_name} ainda não abriu o app com a notificação registrada (sem token salvo).`
+      `${rows[0].display_name} ainda não abriu o app com a notificação registrada (sem token salvo) — mas já ficou salva no histórico dela.`
     );
   }
 
