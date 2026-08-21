@@ -150,3 +150,7 @@ export async function getActivityById(userId: string, activityId: string) {
     createdAt: r.created_at,
   };
 }
+
+export async function deleteActivity(userId: string, activityId: string) {
+  await pool.query(`DELETE FROM activities WHERE id = $1 AND user_id = $2`, [activityId, userId]);
+}
