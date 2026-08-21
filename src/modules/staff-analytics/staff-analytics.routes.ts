@@ -5,6 +5,8 @@ import {
   getTerritoryDominance,
   getActivitiesDailySummary,
   deleteActivityAsStaff,
+  getAnalyticsOverview,
+  resolveOverviewDateRange,
 } from './staff-analytics.service';
 
 export async function staffAnalyticsRoutes(app: FastifyInstance) {
@@ -41,5 +43,15 @@ export async function staffAnalyticsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     await deleteActivityAsStaff(id);
     return reply.code(204).send();
+  });
+
+  app.get('/analytics/overview', async (request) => {
+    const { rangeDays, rangeYear, rangeMonth } = request.query as {
+      rangeDays?: string;
+      rangeYear?: string;
+      rangeMonth?: string;
+    };
+    const range = resolveOverviewDateRange({ rangeDays, rangeYear, rangeMonth });
+    return getAnalyticsOverview(range);
   });
 }
