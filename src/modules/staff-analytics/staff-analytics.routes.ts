@@ -1,6 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
-import { listActivitiesForStaff, getTerritoryDominance, getActivitiesDailySummary } from './staff-analytics.service';
+import {
+  listActivitiesForStaff,
+  getTerritoryDominance,
+  getActivitiesDailySummary,
+  deleteActivityAsStaff,
+} from './staff-analytics.service';
 
 export async function staffAnalyticsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticateStaff);
@@ -30,5 +35,11 @@ export async function staffAnalyticsRoutes(app: FastifyInstance) {
     const { activityType } = request.query as { activityType?: string };
     const type = activityType === 'ride' ? 'ride' : 'run';
     return getTerritoryDominance(type);
+  });
+
+  app.delete('/analytics/activities/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    await deleteActivityAsStaff(id);
+    return reply.code(204).send();
   });
 }

@@ -144,3 +144,11 @@ export async function getActivitiesDailySummary(params: {
     captureKm2: Number(r.capture_km2),
   }));
 }
+
+// Diferente de DELETE /activities/:id (que só apaga a PRÓPRIA atividade
+// do usuário autenticado do app) — staff pode apagar qualquer uma, útil
+// pra limpar duplicatas geradas em teste sem precisar do token da conta
+// de usuário específica.
+export async function deleteActivityAsStaff(activityId: string) {
+  await query(`DELETE FROM activities WHERE id = $1`, [activityId]);
+}
