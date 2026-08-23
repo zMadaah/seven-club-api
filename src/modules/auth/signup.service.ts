@@ -172,8 +172,8 @@ export async function completeSignup(signupId: string, password: string) {
   let userId: string;
   try {
     const userRows = await query<{ id: string }>(
-      `INSERT INTO app_users (email, password_hash, display_name, phone, phone_verified, referral_code, username)
-       VALUES ($1, $2, $3, $4, TRUE, $5, $6)
+      `INSERT INTO app_users (email, password_hash, display_name, phone, phone_verified, referral_code, username, country_code)
+       VALUES ($1, $2, $3, $4, TRUE, $5, $6, 'BR')
        RETURNING id`,
       [
         record.email,
