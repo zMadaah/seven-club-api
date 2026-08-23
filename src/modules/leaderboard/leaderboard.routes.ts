@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
-import { getLeaderboard, LeaderboardScope, LeaderboardError } from './leaderboard.service';
+import { getLeaderboard, getCrewLeaderboard, LeaderboardScope, LeaderboardError } from './leaderboard.service';
 
 export async function leaderboardRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -12,9 +12,9 @@ export async function leaderboardRoutes(app: FastifyInstance) {
       lobbyId?: string;
     };
 
-    if (scope !== 'country' && scope !== 'area' && scope !== 'friends' && scope !== 'lobby') {
+    if (scope !== 'country' && scope !== 'area' && scope !== 'friends' && scope !== 'lobby' && scope !== 'crew') {
       return reply.code(400).send({
-        error: "scope precisa ser 'country', 'area', 'friends' ou 'lobby' (ranking de crew ainda não existe).",
+        error: "scope precisa ser 'country', 'area', 'friends', 'lobby' ou 'crew'.",
       });
     }
 
@@ -22,13 +22,13 @@ export async function leaderboardRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "scope 'lobby' exige o parâmetro lobbyId." });
     }
 
+    const type = activityType === 'ride' ? 'ride' : 'run';
+
     try {
-      return await getLeaderboard(
-        request.userId!,
-        scope as LeaderboardScope,
-        activityType === 'ride' ? 'ride' : 'run',
-        lobbyId
-      );
+      if (scope === 'crew') {
+        return await getCrewLeaderboard(request.userId!, type);
+      }
+      return await getLeaderboard(request.userId!, scope as LeaderboardScope, type, lobbyId);
     } catch (err) {
       if (err instanceof LeaderboardError) return reply.code(403).send({ error: err.message });
       throw err;
