@@ -16,4 +16,11 @@ export const env = {
   accessTokenTtl: process.env.ACCESS_TOKEN_TTL ?? '15m',
   corsOrigin: process.env.CORS_ORIGIN ?? '*',
   isProduction: process.env.NODE_ENV === 'production',
+  // Asaas — sem required() de propósito: enquanto a chave não estiver
+  // configurada no ambiente, o resto do servidor continua funcionando
+  // normal, só as rotas de assinatura falham com mensagem clara em vez
+  // de derrubar o processo inteiro na inicialização.
+  asaasApiKey: process.env.ASAAS_API_KEY ?? '',
+  asaasApiUrl: process.env.ASAAS_API_URL ?? 'https://api-sandbox.asaas.com/v3',
+  asaasWebhookToken: process.env.ASAAS_WEBHOOK_TOKEN ?? '',
 };
