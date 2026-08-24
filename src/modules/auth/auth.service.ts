@@ -73,7 +73,7 @@ const PROFILE_FIELDS = `
   id, email, display_name, first_name, last_name, avatar_url, bio,
   date_of_birth, gender, profile_color, location, country_code, phone,
   profile_visibility, map_visibility, referral_code, referred_by,
-  featured_badge_id, anonymous_mode,
+  featured_badge_id, anonymous_mode, role,
   total_distance_km, total_territory_km2, rival_count, created_at
 `;
 
