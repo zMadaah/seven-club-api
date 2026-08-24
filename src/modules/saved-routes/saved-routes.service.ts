@@ -2,11 +2,30 @@ import { query } from '../../db/pool';
 import { cellsForLoop, cellAreaM2 } from '../../utils/h3';
 import { totalDistance, isLoopClosed, LatLng } from '../../utils/geo';
 
+export class SavedRouteError extends Error {}
+
+const FREE_ROUTE_LIMIT = 3;
+
 function toLineString(points: LatLng[]): string {
   return `LINESTRING(${points.map((p) => `${p.longitude} ${p.latitude}`).join(', ')})`;
 }
 
 export async function createSavedRoute(userId: string, name: string, points: LatLng[]) {
+  const userRows = await query<{ role: string }>(`SELECT role FROM app_users WHERE id = $1`, [userId]);
+  const isSubscriber = userRows[0]?.role === 'subscriber';
+
+  if (!isSubscriber) {
+    const countRows = await query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM saved_routes WHERE user_id = $1`,
+      [userId]
+    );
+    if (Number(countRows[0].count) >= FREE_ROUTE_LIMIT) {
+      throw new SavedRouteError(
+        `Você já salvou ${FREE_ROUTE_LIMIT} rotas grátis. Assine o Seven Club Pro para salvar rotas ilimitadas.`
+      );
+    }
+  }
+
   const distanceMeters = totalDistance(points);
 
   // Estimativa de captura só pra prévia — não reserva território de verdade

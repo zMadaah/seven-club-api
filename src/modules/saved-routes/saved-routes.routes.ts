@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
-import { createSavedRoute, listSavedRoutes, deleteSavedRoute } from './saved-routes.service';
+import { createSavedRoute, listSavedRoutes, deleteSavedRoute, SavedRouteError } from './saved-routes.service';
 
 export async function savedRoutesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -29,8 +29,13 @@ export async function savedRoutesRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     const { name, points } = request.body as any;
-    const route = await createSavedRoute(request.userId!, name, points);
-    return reply.code(201).send(route);
+    try {
+      const route = await createSavedRoute(request.userId!, name, points);
+      return reply.code(201).send(route);
+    } catch (err) {
+      if (err instanceof SavedRouteError) return reply.code(403).send({ error: err.message });
+      throw err;
+    }
   });
 
   app.get('/routes', async (request) => {

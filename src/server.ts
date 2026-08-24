@@ -19,6 +19,8 @@ import { lobbiesRoutes } from './modules/lobbies/lobbies.routes';
 import { lobbyChatRoutes } from './modules/lobbies/lobby-chat.routes';
 import { crewsRoutes } from './modules/crews/crews.routes';
 import { crewChatRoutes } from './modules/crews/crew-chat.routes';
+import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes';
+import { asaasWebhookRoutes } from './modules/subscriptions/asaas-webhook.routes';
 import { blocksRoutes } from './modules/blocks/blocks.routes';
 import { referralsRoutes } from './modules/referrals/referrals.routes';
 import { supportRoutes, supportStaffRoutes } from './modules/support/support.routes';
@@ -80,6 +82,8 @@ async function main() {
   await app.register(lobbyChatRoutes);
   await app.register(crewsRoutes);
   await app.register(crewChatRoutes);
+  await app.register(subscriptionsRoutes);
+  await app.register(asaasWebhookRoutes);
   await app.register(blocksRoutes);
   await app.register(referralsRoutes);
   await app.register(supportRoutes);
