@@ -12,9 +12,9 @@ export async function leaderboardRoutes(app: FastifyInstance) {
       lobbyId?: string;
     };
 
-    if (scope !== 'country' && scope !== 'area' && scope !== 'friends' && scope !== 'lobby' && scope !== 'crew') {
+    if (scope !== 'country' && scope !== 'area' && scope !== 'lobby' && scope !== 'crew') {
       return reply.code(400).send({
-        error: "scope precisa ser 'country', 'area', 'friends', 'lobby' ou 'crew'.",
+        error: "scope precisa ser 'country', 'area', 'lobby' ou 'crew'.",
       });
     }
 

@@ -2,7 +2,7 @@ import { query } from '../../db/pool';
 
 export class LeaderboardError extends Error {}
 
-export type LeaderboardScope = 'country' | 'area' | 'friends' | 'lobby' | 'crew';
+export type LeaderboardScope = 'country' | 'area' | 'lobby' | 'crew';
 
 function flagEmoji(countryCode: string | null): string {
   if (!countryCode || countryCode.length !== 2) return '';
@@ -10,18 +10,10 @@ function flagEmoji(countryCode: string | null): string {
   return String.fromCodePoint(...codePoints);
 }
 
-// Monta o "pool" de concorrentes conforme o escopo. Os quatro casos são
-// SQL fixo (não vem de input do usuário), então interpolar aqui é seguro.
+// Monta o "pool" de concorrentes conforme o escopo. Os casos são SQL
+// fixo (não vem de input do usuário), então interpolar aqui é seguro.
 // "lobby" é o único que usa um terceiro parâmetro ($3, o lobbyId).
 function poolCte(scope: LeaderboardScope): string {
-  if (scope === 'friends') {
-    return `pool AS (
-      SELECT followee_id AS id FROM follows WHERE follower_id = $1
-      UNION
-      SELECT $1
-    )`;
-  }
-
   if (scope === 'country') {
     return `pool AS (
       SELECT id FROM app_users
@@ -86,6 +78,14 @@ export async function getLeaderboard(
   const params: (string | undefined)[] = [userId, activityType];
   if (scope === 'lobby') params.push(lobbyId);
 
+  // Só o escopo "país" ranqueia por pontuação combinada (km² de
+  // território + km percorridos, somados como se fossem a mesma
+  // unidade — decisão de design simples, não é conversão física real).
+  // Os demais escopos continuam ranqueando só por território, que é a
+  // mecânica central do jogo.
+  const rankExpression =
+    scope === 'country' ? '(area_m2 / 1000000.0 + distance_km)' : 'area_m2';
+
   const rows = await query<LeaderboardRow>(
     `WITH ${poolCte(scope)},
      totals AS (
@@ -104,9 +104,9 @@ export async function getLeaderboard(
         GROUP BY u.id, u.display_name, u.avatar_url, u.country_code
      )
      SELECT user_id, display_name, avatar_url, country_code, area_m2, distance_km,
-            RANK() OVER (ORDER BY area_m2 DESC) AS rank
+            RANK() OVER (ORDER BY ${rankExpression} DESC) AS rank
        FROM totals
-      ORDER BY area_m2 DESC
+      ORDER BY ${rankExpression} DESC
       LIMIT 500`,
     params
   );

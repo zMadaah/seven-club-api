@@ -73,8 +73,13 @@ export async function submitActivity(input: SubmitActivityInput) {
   // território capturado. Antes disso, registrar atividade não gerava
   // XP nenhum — só desafios e insígnias concediam, deixando "correr de
   // verdade" sem recompensa direta no nível.
+  // Território agora usa o mesmo divisor de 1000 que a distância — antes
+  // era ÷100, o que deixava o XP de território generoso demais (uma
+  // captura de 370.560 m² dava 3.705 XP sozinha, pulando do nível 1 pro
+  // 37 numa atividade só). Com ÷1000, a mesma captura vira 370 XP —
+  // nível 3, progressão bem mais gradual e compatível com o resto do jogo.
   const distanceXp = Math.floor(distanceMeters / 1000);
-  const territoryXp = Math.floor(captureM2 / 100);
+  const territoryXp = Math.floor(captureM2 / 1000);
   const totalXpEarned = distanceXp + territoryXp;
   if (totalXpEarned > 0) {
     await grantXp(userId, 'activity', activityId, totalXpEarned);
