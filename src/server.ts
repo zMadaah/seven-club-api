@@ -1,9 +1,7 @@
-import path from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
-import fastifyStatic from '@fastify/static';
 import { env } from './config/env';
 import { authRoutes } from './modules/auth/auth.routes';
 import { signupRoutes } from './modules/auth/signup.routes';
@@ -58,13 +56,6 @@ async function main() {
   });
 
   await app.register(multipart);
-
-  // Serve os arquivos de uploads/ em /uploads/<nome> — ver o aviso em
-  // uploads.routes.ts sobre isso ser só pra homologação.
-  await app.register(fastifyStatic, {
-    root: path.join(__dirname, '..', 'uploads'),
-    prefix: '/uploads/',
-  });
 
   app.get('/health', async () => ({ status: 'ok' }));
 
