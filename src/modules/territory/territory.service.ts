@@ -1,6 +1,7 @@
 import { pool } from '../../db/pool';
 import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary } from '../../utils/h3';
 import { LatLng } from '../../utils/geo';
+import { getTotalXp, levelFromTotalXp } from '../progress/xp.service';
 
 export interface CaptureResult {
   captureM2: number;
@@ -133,4 +134,70 @@ export async function getTerritoryCellsInBounds(params: {
     isMine: r.owner_user_id === requesterId,
     boundary: cellBoundary(r.h3_index),
   }));
+}
+
+export class TerritoryCellError extends Error {}
+
+// Detalhe de "quem dominou esse hexágono" — pro modal que abre ao tocar
+// numa célula no mapa. Junta o dono atual com a atividade mais recente
+// que capturou essa célula especificamente (via territory_capture_events,
+// não territory_cells — essa segunda só guarda o estado atual, não
+// histórico de quando/como foi capturada).
+export async function getCellOwnerDetail(h3Index: string) {
+  const cellRows = await pool.query(
+    `SELECT owner_user_id FROM territory_cells WHERE h3_index = $1`,
+    [h3Index]
+  );
+  if (cellRows.rows.length === 0 || !cellRows.rows[0].owner_user_id) {
+    throw new TerritoryCellError('Esse hexágono ainda não tem dono.');
+  }
+  const ownerId = cellRows.rows[0].owner_user_id;
+
+  const ownerRows = await pool.query(
+    `SELECT display_name, avatar_url, location, country_code FROM app_users WHERE id = $1`,
+    [ownerId]
+  );
+  if (ownerRows.rows.length === 0) {
+    throw new TerritoryCellError('Usuário não encontrado.');
+  }
+  const owner = ownerRows.rows[0];
+
+  // Última atividade que capturou essa célula PRO DONO ATUAL — se a
+  // célula já trocou de mão várias vezes, pega só a captura mais
+  // recente que resultou no dono de agora (ignora capturas antigas de
+  // donos anteriores).
+  const captureRows = await pool.query(
+    `SELECT a.id, a.distance_meters, a.duration_seconds, a.capture_m2,
+            a.avg_pace_sec_per_km, tce.captured_at
+       FROM territory_capture_events tce
+       JOIN activities a ON a.id = tce.activity_id
+      WHERE tce.h3_index = $1 AND tce.new_owner_user_id = $2
+      ORDER BY tce.captured_at DESC
+      LIMIT 1`,
+    [h3Index, ownerId]
+  );
+
+  const totalXp = await getTotalXp(ownerId);
+  const { level } = levelFromTotalXp(totalXp);
+
+  const capture = captureRows.rows[0] ?? null;
+
+  return {
+    ownerId,
+    ownerName: owner.display_name,
+    ownerAvatarUrl: owner.avatar_url,
+    ownerLevel: level,
+    location: owner.location,
+    countryCode: owner.country_code,
+    activity: capture
+      ? {
+          activityId: capture.id,
+          distanceMeters: Number(capture.distance_meters),
+          durationSeconds: capture.duration_seconds,
+          captureM2: Number(capture.capture_m2),
+          avgPaceSecPerKm: capture.avg_pace_sec_per_km ? Number(capture.avg_pace_sec_per_km) : null,
+          capturedAt: capture.captured_at,
+        }
+      : null,
+  };
 }

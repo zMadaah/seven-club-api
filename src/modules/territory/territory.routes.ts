@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
 import { pool } from '../../db/pool';
 import { formatDuration } from '../../utils/format';
-import { getTerritoryCellsInBounds } from './territory.service';
+import { getTerritoryCellsInBounds, getCellOwnerDetail, TerritoryCellError } from './territory.service';
 
 export async function territoryRoutes(app: FastifyInstance) {
   app.addHook('preHandler', authenticate);
@@ -63,5 +63,17 @@ export async function territoryRoutes(app: FastifyInstance) {
       minLng: bounds[2],
       maxLng: bounds[3],
     });
+  });
+
+  // Detalhe de quem dominou um hexágono específico — abre o modal ao
+  // tocar numa célula no mapa.
+  app.get('/territory/cells/:h3Index/owner', async (request, reply) => {
+    const { h3Index } = request.params as { h3Index: string };
+    try {
+      return await getCellOwnerDetail(h3Index);
+    } catch (err) {
+      if (err instanceof TerritoryCellError) return reply.code(404).send({ error: err.message });
+      throw err;
+    }
   });
 }
