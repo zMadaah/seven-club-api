@@ -49,6 +49,7 @@ interface LeaderboardRow {
   avatar_url: string | null;
   country_code: string | null;
   area_m2: string;
+  cells_owned: string;
   distance_km: string;
   rank: string;
 }
@@ -78,19 +79,25 @@ export async function getLeaderboard(
   const params: (string | undefined)[] = [userId, activityType];
   if (scope === 'lobby') params.push(lobbyId);
 
-  // Só o escopo "país" ranqueia por pontuação combinada (km² de
-  // território + km percorridos, somados como se fossem a mesma
-  // unidade — decisão de design simples, não é conversão física real).
-  // Os demais escopos continuam ranqueando só por território, que é a
-  // mecânica central do jogo.
-  const rankExpression =
-    scope === 'country' ? '(area_m2 / 1000000.0 + distance_km)' : 'area_m2';
+  // Cada escopo ranqueia por um critério diferente, de propósito:
+  // - "país": só km percorridos. A primeira versão somava território
+  //   (km²) com distância (km) como se fossem a mesma unidade — na
+  //   prática, alguém com pouquíssima distância mas muito território
+  //   ficava na frente de quem correu bem mais, o que não fazia
+  //   sentido pra um ranking pensado em "quem mais se movimentou".
+  // - "área": contagem de hexágonos capturados — mais direto de
+  //   entender que km² fracionado, e é a mecânica central do jogo
+  //   (capturar território). Pode não ser a palavra final (ainda
+  //   estamos validando essa lógica), mas é mais claro que km² por
+  //   enquanto.
+  const rankExpression = scope === 'country' ? 'distance_km' : 'cells_owned';
 
   const rows = await query<LeaderboardRow>(
     `WITH ${poolCte(scope)},
      totals AS (
        SELECT u.id AS user_id, u.display_name, u.avatar_url, u.country_code,
               COALESCE(SUM(tc.cell_area_m2), 0) AS area_m2,
+              COUNT(tc.h3_index) AS cells_owned,
               COALESCE(
                 (SELECT SUM(a.distance_meters) / 1000.0
                    FROM activities a
@@ -103,7 +110,7 @@ export async function getLeaderboard(
            ON tc.owner_user_id = u.id AND tc.activity_type = $2
         GROUP BY u.id, u.display_name, u.avatar_url, u.country_code
      )
-     SELECT user_id, display_name, avatar_url, country_code, area_m2, distance_km,
+     SELECT user_id, display_name, avatar_url, country_code, area_m2, cells_owned, distance_km,
             RANK() OVER (ORDER BY ${rankExpression} DESC) AS rank
        FROM totals
       ORDER BY ${rankExpression} DESC
@@ -119,6 +126,7 @@ export async function getLeaderboard(
     countryFlag: flagEmoji(r.country_code),
     countryCode: r.country_code ?? '',
     territoryKm2: Number(r.area_m2) / 1_000_000,
+    cellsOwned: Number(r.cells_owned),
     distanceKm: Number(r.distance_km),
     activityType,
   }));
@@ -135,6 +143,7 @@ interface CrewLeaderboardRow {
   crew_name: string;
   crew_picture_url: string | null;
   area_m2: string;
+  cells_owned: string;
   distance_km: string;
   rank: string;
 }
@@ -153,7 +162,8 @@ export async function getCrewLeaderboard(userId: string, activityType: 'run' | '
        SELECT crew_id, user_id FROM crew_members
      ),
      member_territory AS (
-       SELECT cam.crew_id, COALESCE(SUM(tc.cell_area_m2), 0) AS area_m2
+       SELECT cam.crew_id, COALESCE(SUM(tc.cell_area_m2), 0) AS area_m2,
+              COUNT(tc.h3_index) AS cells_owned
          FROM crew_all_members cam
          LEFT JOIN territory_cells tc ON tc.owner_user_id = cam.user_id AND tc.activity_type = $1
         GROUP BY cam.crew_id
@@ -166,6 +176,7 @@ export async function getCrewLeaderboard(userId: string, activityType: 'run' | '
      )
      SELECT c.id AS crew_id, c.name AS crew_name, c.picture_url AS crew_picture_url,
             COALESCE(mt.area_m2, 0) AS area_m2,
+            COALESCE(mt.cells_owned, 0) AS cells_owned,
             COALESCE(md.distance_km, 0) AS distance_km,
             RANK() OVER (ORDER BY COALESCE(mt.area_m2, 0) DESC) AS rank
        FROM crews c
@@ -184,6 +195,7 @@ export async function getCrewLeaderboard(userId: string, activityType: 'run' | '
     countryFlag: '',
     countryCode: '',
     territoryKm2: Number(r.area_m2) / 1_000_000,
+    cellsOwned: Number(r.cells_owned),
     distanceKm: Number(r.distance_km),
     activityType,
   }));
