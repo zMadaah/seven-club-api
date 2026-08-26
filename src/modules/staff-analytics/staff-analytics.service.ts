@@ -1,4 +1,5 @@
 import { query } from '../../db/pool';
+import { getCancellationRate } from '../staff-payments/staff-payments.service';
 
 interface ActivityRow {
   id: string;
@@ -255,10 +256,10 @@ export async function getAnalyticsOverview(range: { start: Date; end: Date }) {
     stats: {
       activitiesThisWeek: Number(statsRows[0]?.activities_count ?? 0),
       activeUsersThisWeek: Number(statsRows[0]?.active_users ?? 0),
-      // Sem sistema de assinatura real ainda (a integração Asaas foi
-      // removida pra depois) — fica 0 até existir dado de verdade pra
-      // calcular cancelamento, em vez de inventar um número.
-      cancellationRate: 0,
+      // Agora com dado real: % de assinaturas já criadas que acabaram
+      // canceladas de verdade (status='canceled', não conta
+      // past_due/expired, que podem só ser atraso passageiro).
+      cancellationRate: await getCancellationRate(),
       avgResponseMinutes:
         responseRows[0]?.avg_minutes != null ? Math.round(Number(responseRows[0].avg_minutes)) : null,
     },
