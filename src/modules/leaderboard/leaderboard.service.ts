@@ -14,7 +14,15 @@ function flagEmoji(countryCode: string | null): string {
 // fixo (não vem de input do usuário), então interpolar aqui é seguro.
 // "lobby" é o único que usa um terceiro parâmetro ($3, o lobbyId).
 function poolCte(scope: LeaderboardScope): string {
-  if (scope === 'country') {
+  // "país" e "área" usam o MESMO pool (todo mundo do mesmo país) — a
+  // diferença entre os dois não está em QUEM compete, está em QUAL
+  // critério ranqueia (ver rankExpression mais abaixo: país por km
+  // percorridos, área por hexágonos capturados). Área já tentou usar um
+  // pool mais restrito, pareando por texto de localização do perfil —
+  // removido porque esse campo nunca tinha um jeito confiável de ser
+  // preenchido (não existe tela pra editar, e a captura automática via
+  // GPS não se mostrou suficiente), deixando o ranking sempre vazio.
+  if (scope === 'country' || scope === 'area') {
     return `pool AS (
       SELECT id FROM app_users
        WHERE status = 'active'
@@ -31,16 +39,7 @@ function poolCte(scope: LeaderboardScope): string {
     )`;
   }
 
-  // area — aproximação simples: mesmo texto de localização no perfil
-  // (ex: "Brasília, Brasil"). Não é geolocalização de verdade; se um dia
-  // isso importar o suficiente, dá pra trocar por raio em torno de um
-  // ponto usando a coluna `center` que territory_cells já tem.
-  return `pool AS (
-    SELECT id FROM app_users
-     WHERE status = 'active'
-       AND location IS NOT NULL
-       AND location = (SELECT location FROM app_users WHERE id = $1)
-  )`;
+  throw new LeaderboardError(`Escopo desconhecido: ${scope}`);
 }
 
 interface LeaderboardRow {
