@@ -12,7 +12,10 @@ function toLineString(points: LatLng[]): string {
 
 export async function createSavedRoute(userId: string, name: string, points: LatLng[]) {
   const userRows = await query<{ role: string }>(`SELECT role FROM app_users WHERE id = $1`, [userId]);
-  const isSubscriber = userRows[0]?.role === 'subscriber';
+  // "influencer" tem os mesmos benefícios de "subscriber" — status
+  // concedido manualmente pelo staff no dashboard, sem assinatura de
+  // verdade por trás.
+  const isSubscriber = userRows[0]?.role === 'subscriber' || userRows[0]?.role === 'influencer';
 
   if (!isSubscriber) {
     const countRows = await query<{ count: string }>(

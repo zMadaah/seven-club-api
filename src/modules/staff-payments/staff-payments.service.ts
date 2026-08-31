@@ -101,11 +101,18 @@ export async function getSubscriptionStatusSummary() {
         ORDER BY user_id, created_at DESC
      )
      SELECT
-       COALESCE(ls.status, 'free') AS status,
+       -- influencer é role concedido manualmente pelo staff, sem
+       -- assinatura de verdade por trás — precisa ganhar prioridade
+       -- aqui, senão cairia incorretamente em "free" (já que não tem
+       -- registro nenhum em user_subscriptions).
+       CASE
+         WHEN u.role = 'influencer' THEN 'influencer'
+         ELSE COALESCE(ls.status, 'free')
+       END AS status,
        COUNT(*) AS count
        FROM app_users u
        LEFT JOIN latest_subscription ls ON ls.user_id = u.id
-      GROUP BY COALESCE(ls.status, 'free')`
+      GROUP BY 1`
   );
 
   const total = rows.reduce((sum, r) => sum + Number(r.count), 0);
