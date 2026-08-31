@@ -2,6 +2,7 @@ import { pool } from '../../db/pool';
 import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary } from '../../utils/h3';
 import { LatLng } from '../../utils/geo';
 import { getTotalXp, levelFromTotalXp } from '../progress/xp.service';
+import { getCurrentSeason } from '../progress/seasons.service';
 import { createNotification } from '../notifications/notifications.service';
 import { sendExpoPushNotification } from '../notifications-push/push.service';
 
@@ -26,6 +27,11 @@ export async function captureTerritoryForActivity(params: {
   const cells = cellsForLoop(points);
   if (cells.length === 0) {
     return { captureM2: 0, cellsCaptured: 0, cellsStolenFromOthers: 0 };
+  }
+
+  const season = await getCurrentSeason();
+  if (!season) {
+    throw new Error('Nenhuma temporada cadastrada — não é possível registrar captura de território.');
   }
 
   const client = await pool.connect();
@@ -69,9 +75,9 @@ export async function captureTerritoryForActivity(params: {
 
       await client.query(
         `INSERT INTO territory_capture_events
-           (activity_id, h3_index, activity_type, previous_owner_user_id, new_owner_user_id, captured_at)
-         VALUES ($1, $2, $3, $4, $5, now())`,
-        [activityId, h3Index, activityType, previousOwner, userId]
+           (activity_id, h3_index, activity_type, previous_owner_user_id, new_owner_user_id, captured_at, season_id)
+         VALUES ($1, $2, $3, $4, $5, now(), $6)`,
+        [activityId, h3Index, activityType, previousOwner, userId, season.id]
       );
 
       captureM2 += area;

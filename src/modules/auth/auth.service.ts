@@ -175,3 +175,23 @@ export async function deleteMyData(userId: string) {
     client.release();
   }
 }
+
+export class DeleteAccountError extends Error {}
+
+// Diferente de deleteMyData (que só limpa atividade/território,
+// mantendo a conta) — isso apaga o USUÁRIO inteiro. Quase toda tabela
+// relacionada já tem ON DELETE CASCADE ou SET NULL configurado desde
+// as migrations originais, então um DELETE simples já cascateia
+// corretamente pra activities, posts, follows, notifications, etc.
+//
+// Limitação conhecida: se a conta for dona (creator_id) de um crew ou
+// lobby que tenha OUTROS membros, o grupo inteiro desaparece junto
+// (cascade), levando os outros membros sem aviso. Não tratamos
+// "transferir posse" aqui — isso pode virar uma melhoria futura se
+// virar um problema real na prática.
+export async function deleteMyAccount(userId: string) {
+  const rows = await pool.query<{ id: string }>(`SELECT id FROM app_users WHERE id = $1`, [userId]);
+  if (rows.rows.length === 0) throw new DeleteAccountError('Conta não encontrada.');
+
+  await pool.query(`DELETE FROM app_users WHERE id = $1`, [userId]);
+}

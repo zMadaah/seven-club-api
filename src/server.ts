@@ -19,6 +19,7 @@ import { crewsRoutes } from './modules/crews/crews.routes';
 import { crewChatRoutes } from './modules/crews/crew-chat.routes';
 import { subscriptionsRoutes } from './modules/subscriptions/subscriptions.routes';
 import { staffPaymentsRoutes } from './modules/staff-payments/staff-payments.routes';
+import { staffSeasonsRoutes } from './modules/staff-seasons/staff-seasons.routes';
 import { asaasWebhookRoutes } from './modules/subscriptions/asaas-webhook.routes';
 import { blocksRoutes } from './modules/blocks/blocks.routes';
 import { referralsRoutes } from './modules/referrals/referrals.routes';
@@ -76,6 +77,7 @@ async function main() {
   await app.register(crewChatRoutes);
   await app.register(subscriptionsRoutes);
   await app.register(staffPaymentsRoutes);
+  await app.register(staffSeasonsRoutes);
   await app.register(asaasWebhookRoutes);
   await app.register(blocksRoutes);
   await app.register(referralsRoutes);

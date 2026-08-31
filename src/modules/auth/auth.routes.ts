@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
-import { AuthError, login, refreshSession, logout, getMe, updateMe, deleteMyData } from './auth.service';
+import { AuthError, login, refreshSession, logout, getMe, updateMe, deleteMyData, deleteMyAccount, DeleteAccountError } from './auth.service';
 
 const credentialsSchema = {
   type: 'object',
@@ -95,5 +95,21 @@ export async function authRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     await deleteMyData(request.userId!);
     return reply.code(204).send();
+  });
+
+  // Excluir a CONTA inteira (diferente de /auth/me/data, que só limpa
+  // atividade/território) — a pessoa deixa de existir no sistema.
+  // Sem confirmação extra aqui, a tela já confirma antes de chamar.
+  app.delete('/auth/me', {
+    preHandler: authenticate,
+    config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
+  }, async (request, reply) => {
+    try {
+      await deleteMyAccount(request.userId!);
+      return reply.code(204).send();
+    } catch (err) {
+      if (err instanceof DeleteAccountError) return reply.code(404).send({ error: err.message });
+      throw err;
+    }
   });
 }

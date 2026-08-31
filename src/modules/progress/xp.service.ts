@@ -1,4 +1,5 @@
 import { query } from '../../db/pool';
+import { getCurrentSeason } from './seasons.service';
 
 // ── Fórmula de XP/nível — v1, propositalmente simples ────────────────────
 // Não existia fórmula nenhuma definida antes disso (o app mostrava
@@ -14,10 +15,17 @@ export function levelFromTotalXp(totalXp: number): { level: number; exp: number;
   return { level, exp, expTarget: EXP_PER_LEVEL };
 }
 
+// Nível é sempre a soma da temporada ATUAL, não da vida toda — é isso
+// que faz o reset de temporada "funcionar de graça": ao criar uma
+// temporada nova, a soma começa vazia sozinha, sem precisar apagar
+// nenhum xp_event antigo (que continua servindo de histórico/auditoria).
 export async function getTotalXp(userId: string): Promise<number> {
+  const season = await getCurrentSeason();
+  if (!season) return 0;
+
   const rows = await query<{ total: string }>(
-    `SELECT COALESCE(SUM(amount), 0) AS total FROM xp_events WHERE user_id = $1`,
-    [userId]
+    `SELECT COALESCE(SUM(amount), 0) AS total FROM xp_events WHERE user_id = $1 AND season_id = $2`,
+    [userId, season.id]
   );
   return Number(rows[0].total);
 }
@@ -26,10 +34,13 @@ export async function getTotalXp(userId: string): Promise<number> {
 // por causa da constraint UNIQUE(user_id, source, source_id): tentar
 // conceder de novo pela mesma fonte simplesmente não faz nada.
 export async function grantXp(userId: string, source: string, sourceId: string, amount: number) {
+  const season = await getCurrentSeason();
+  if (!season) return; // sem temporada cadastrada, não tem onde estampar — não deveria acontecer em uso normal
+
   await query(
-    `INSERT INTO xp_events (user_id, source, source_id, amount)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO xp_events (user_id, source, source_id, amount, season_id)
+     VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (user_id, source, source_id) DO NOTHING`,
-    [userId, source, sourceId, amount]
+    [userId, source, sourceId, amount, season.id]
   );
 }
