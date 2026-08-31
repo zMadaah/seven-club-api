@@ -2,6 +2,8 @@ import { pool } from '../../db/pool';
 import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary } from '../../utils/h3';
 import { LatLng } from '../../utils/geo';
 import { getTotalXp, levelFromTotalXp } from '../progress/xp.service';
+import { createNotification } from '../notifications/notifications.service';
+import { sendExpoPushNotification } from '../notifications-push/push.service';
 
 export interface CaptureResult {
   captureM2: number;
@@ -30,6 +32,10 @@ export async function captureTerritoryForActivity(params: {
   let captureM2 = 0;
   let cellsCaptured = 0;
   let cellsStolenFromOthers = 0;
+  // Quem perdeu território nessa captura específica, e quanto — pra
+  // notificar cada um só uma vez no final, mesmo perdendo várias
+  // células (em vez de mandar uma notificação por célula).
+  const stolenFrom = new Map<string, { cells: number; areaM2: number }>();
 
   try {
     await client.query('BEGIN');
@@ -70,7 +76,11 @@ export async function captureTerritoryForActivity(params: {
 
       captureM2 += area;
       cellsCaptured += 1;
-      if (previousOwner) cellsStolenFromOthers += 1;
+      if (previousOwner) {
+        cellsStolenFromOthers += 1;
+        const prev = stolenFrom.get(previousOwner) ?? { cells: 0, areaM2: 0 };
+        stolenFrom.set(previousOwner, { cells: prev.cells + 1, areaM2: prev.areaM2 + area });
+      }
     }
 
     await client.query('COMMIT');
@@ -81,7 +91,50 @@ export async function captureTerritoryForActivity(params: {
     client.release();
   }
 
+  // Notifica quem perdeu território — depois do commit, só se a
+  // captura realmente foi salva. Cada dono anterior recebe UMA
+  // notificação (não uma por célula), mesmo perdendo vários hexágonos
+  // pro mesmo capturador na mesma atividade.
+  if (stolenFrom.size > 0) {
+    const nameRows = await pool.query<{ display_name: string }>(
+      `SELECT display_name FROM app_users WHERE id = $1`,
+      [userId]
+    );
+    const capturerName = nameRows.rows[0]?.display_name ?? 'Alguém';
+
+    // Fire-and-forget deliberado — quem está registrando a atividade
+    // não deveria esperar o tempo de notificar N pessoas diferentes.
+    // Erro em uma notificação (token inválido, etc.) não derruba as
+    // outras nem a resposta da atividade em si.
+    for (const [previousOwnerId, lost] of stolenFrom) {
+      notifyTerritoryLost(previousOwnerId, capturerName, lost.cells, lost.areaM2).catch((err) => {
+        console.warn(`Falha ao notificar ${previousOwnerId} sobre território perdido:`, err);
+      });
+    }
+  }
+
   return { captureM2, cellsCaptured, cellsStolenFromOthers };
+}
+
+// Mensagem varia conforme quanto foi perdido — "1 hexágono" no
+// singular, e a área em m² (perdas pequenas, mais comum) ou km²
+// (perdas grandes) pra não mostrar um número gigante tipo "45000 m²".
+async function notifyTerritoryLost(userId: string, capturerName: string, cells: number, areaM2: number) {
+  const cellsLabel = cells === 1 ? '1 hexágono' : `${cells} hexágonos`;
+  const areaLabel = areaM2 >= 10000 ? `${(areaM2 / 1_000_000).toFixed(2)} km²` : `${Math.round(areaM2)} m²`;
+  const title = 'Você perdeu território!';
+  const subtitle = `${capturerName} tomou ${cellsLabel} seus (${areaLabel}). Corre lá pra retomar.`;
+
+  await createNotification({ userId, category: 'territory', title, subtitle });
+
+  const rows = await pool.query<{ expo_push_token: string | null }>(
+    `SELECT expo_push_token FROM app_users WHERE id = $1`,
+    [userId]
+  );
+  const token = rows.rows[0]?.expo_push_token;
+  if (token) {
+    await sendExpoPushNotification({ expoPushToken: token, title, body: subtitle });
+  }
 }
 
 export interface TerritoryCellView {
