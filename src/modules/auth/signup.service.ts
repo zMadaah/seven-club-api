@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { query } from '../../db/pool';
-import { hashPassword } from '../../utils/password';
+import { hashPassword, validatePasswordStrength } from '../../utils/password';
 import { issueSession } from './auth.service';
 import { env } from '../../config/env';
 
@@ -137,6 +137,9 @@ export async function verifySignupCode(signupId: string, code: string) {
 // Etapa 3: cria a senha e, com ela, a conta de verdade em app_users.
 // Já devolve accessToken/refreshToken — a pessoa termina o cadastro logada.
 export async function completeSignup(signupId: string, password: string) {
+  const passwordError = validatePasswordStrength(password);
+  if (passwordError) throw new SignupError(passwordError);
+
   const rows = await query<{
     id: string;
     name: string;

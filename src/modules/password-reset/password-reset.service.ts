@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { query } from '../../db/pool';
-import { hashPassword } from '../../utils/password';
+import { hashPassword, validatePasswordStrength } from '../../utils/password';
 import { env } from '../../config/env';
 
 export class PasswordResetError extends Error {}
@@ -127,6 +127,9 @@ export async function verifyPasswordResetCode(resetId: string, code: string) {
 // proteção padrão pro caso da senha antiga ter vazado (é por isso que
 // estamos nesse fluxo, afinal).
 export async function completePasswordReset(resetId: string, newPassword: string) {
+  const passwordError = validatePasswordStrength(newPassword);
+  if (passwordError) throw new PasswordResetError(passwordError);
+
   const rows = await query<{
     id: string;
     user_id: string | null;
