@@ -40,7 +40,7 @@ export async function grantXp(userId: string, source: string, sourceId: string, 
   await query(
     `INSERT INTO xp_events (user_id, source, source_id, amount, season_id)
      VALUES ($1, $2, $3, $4, $5)
-     ON CONFLICT (user_id, source, source_id) DO NOTHING`,
+     ON CONFLICT (user_id, source, source_id, season_id) DO NOTHING`,
     [userId, source, sourceId, amount, season.id]
   );
 }
