@@ -75,7 +75,7 @@ export async function passwordResetRoutes(app: FastifyInstance) {
         required: ['resetId', 'password'],
         properties: {
           resetId: { type: 'string', format: 'uuid' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 6 },
         },
       },
     },

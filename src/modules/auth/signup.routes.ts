@@ -84,7 +84,7 @@ export async function signupRoutes(app: FastifyInstance) {
         required: ['signupId', 'password'],
         properties: {
           signupId: { type: 'string', format: 'uuid' },
-          password: { type: 'string', minLength: 8 },
+          password: { type: 'string', minLength: 6 },
         },
       },
     },
