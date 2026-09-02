@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { query } from '../../db/pool';
 import { hashPassword, validatePasswordStrength } from '../../utils/password';
 import { env } from '../../config/env';
+import { isEmailConfigured, sendEmail } from '../../integrations/resend/email.service';
 
 export class PasswordResetError extends Error {}
 
@@ -17,17 +18,32 @@ function hashCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
-// Etapa 1: e-mail ou celular. A resposta tem sempre o mesmo formato,
-// exista ou não uma conta com esse contato — isso evita que a rota vire
-// uma forma de descobrir quais e-mails/celulares estão cadastrados.
-// Quando não existe conta, criamos um registro com user_id nulo: ele
-// nunca vai validar nenhum código de verdade, mas o app não percebe
-// diferença nenhuma na resposta.
-export async function startPasswordReset(method: 'email' | 'phone', contact: string) {
-  const column = method === 'phone' ? 'phone' : 'email';
+// Único canal de recuperação agora é e-mail (Resend) — telefone
+// deixou de ser usado como canal de entrega (a coluna `channel` na
+// tabela continua existindo com o valor fixo 'email', pra não exigir
+// uma migration só por causa dessa simplificação).
+async function sendResetCode(contact: string, code: string): Promise<string | undefined> {
+  if (isEmailConfigured()) {
+    await sendEmail(
+      contact,
+      'Seven Club — Código de recuperação de senha',
+      `<p>Seu código de recuperação é <strong>${code}</strong>.</p><p>Válido por ${CODE_TTL_MINUTES} minutos.</p>`
+    );
+    return undefined;
+  }
+  return env.isProduction ? undefined : code;
+}
+
+// Etapa 1: e-mail. A resposta tem sempre o mesmo formato, exista ou
+// não uma conta com esse e-mail — isso evita que a rota vire uma forma
+// de descobrir quais e-mails estão cadastrados. Quando não existe
+// conta, criamos um registro com user_id nulo: ele nunca vai validar
+// nenhum código de verdade, mas o app não percebe diferença nenhuma
+// na resposta.
+export async function startPasswordReset(email: string) {
   const rows = await query<{ id: string }>(
-    `SELECT id FROM app_users WHERE ${column} = $1 AND status = 'active'`,
-    [contact]
+    `SELECT id FROM app_users WHERE email = $1 AND status = 'active'`,
+    [email]
   );
   const userId: string | null = rows[0]?.id ?? null;
 
@@ -36,18 +52,21 @@ export async function startPasswordReset(method: 'email' | 'phone', contact: str
 
   const inserted = await query<{ id: string }>(
     `INSERT INTO password_reset_verifications (user_id, channel, code_hash, expires_at)
-     VALUES ($1, $2, $3, $4)
+     VALUES ($1, 'email', $2, $3)
      RETURNING id`,
-    [userId, method, hashCode(code), expiresAt]
+    [userId, hashCode(code), expiresAt]
   );
 
-  // TODO produção: enviar o código de verdade por e-mail (SES/SendGrid) ou
-  // SMS (Zenvia/Twilio/SNS) pro `contact` — só quando userId existir. Sem
-  // conta, não enviamos nada, mas a resposta abaixo é idêntica mesmo assim.
+  // Só manda/mostra código quando existe conta de verdade (userId
+  // real) — pro registro "fantasma" nunca enviamos nem mostramos nada,
+  // mas a resposta continua idêntica de qualquer forma (não vaza se a
+  // conta existe).
+  const devCode = userId ? await sendResetCode(email, code) : undefined;
+
   return {
     resetId: inserted[0].id,
     expiresInSeconds: CODE_TTL_MINUTES * 60,
-    devCode: !env.isProduction && userId ? code : undefined,
+    devCode,
   };
 }
 
@@ -81,9 +100,22 @@ export async function resendPasswordResetCode(resetId: string) {
     [hashCode(code), expiresAt, resetId]
   );
 
+  let devCode: string | undefined;
+  if (record.user_id) {
+    // registro original não guarda o e-mail em si (só o user_id) —
+    // busca de volta em app_users
+    const contactRow = await query<{ email: string }>(
+      `SELECT email FROM app_users WHERE id = $1`,
+      [record.user_id]
+    );
+    if (contactRow[0]) {
+      devCode = await sendResetCode(contactRow[0].email, code);
+    }
+  }
+
   return {
     expiresInSeconds: CODE_TTL_MINUTES * 60,
-    devCode: !env.isProduction && record.user_id ? code : undefined,
+    devCode,
   };
 }
 

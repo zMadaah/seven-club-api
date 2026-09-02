@@ -13,16 +13,15 @@ export async function passwordResetRoutes(app: FastifyInstance) {
     schema: {
       body: {
         type: 'object',
-        required: ['method', 'contact'],
+        required: ['contact'],
         properties: {
-          method: { type: 'string', enum: ['email', 'phone'] },
-          contact: { type: 'string', minLength: 3, maxLength: 255 },
+          contact: { type: 'string', format: 'email' },
         },
       },
     },
   }, async (request, reply) => {
-    const { method, contact } = request.body as any;
-    const result = await startPasswordReset(method, contact);
+    const { contact } = request.body as any;
+    const result = await startPasswordReset(contact);
     return reply.code(201).send(result);
   });
 

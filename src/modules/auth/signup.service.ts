@@ -3,6 +3,7 @@ import { query } from '../../db/pool';
 import { hashPassword, validatePasswordStrength } from '../../utils/password';
 import { issueSession } from './auth.service';
 import { env } from '../../config/env';
+import { isEmailConfigured, sendEmail } from '../../integrations/resend/email.service';
 
 export class SignupError extends Error {}
 
@@ -58,14 +59,14 @@ export async function startSignup(name: string, email: string, phone: string) {
     throw new SignupError('Já existe uma conta com esse e-mail ou celular.');
   }
 
-  // Evita disparar SMS repetido pro mesmo número em menos de 1 minuto —
-  // além do rate limit por IP na rota, isso barra o caso de alguém trocar
-  // de IP mas continuar mirando o mesmo celular.
+  // Evita disparar e-mail repetido pro mesmo endereço em menos de 1
+  // minuto — além do rate limit por IP na rota, isso barra o caso de
+  // alguém trocar de IP mas continuar mirando o mesmo e-mail.
   const recent = await query<{ last_sent_at: string }>(
     `SELECT last_sent_at FROM signup_verifications
-      WHERE phone = $1 AND last_sent_at > now() - interval '${RESEND_COOLDOWN_SECONDS} seconds'
+      WHERE email = $1 AND last_sent_at > now() - interval '${RESEND_COOLDOWN_SECONDS} seconds'
       ORDER BY last_sent_at DESC LIMIT 1`,
-    [phone]
+    [email]
   );
   if (recent.length > 0) {
     throw new SignupError('Aguarde um pouco antes de pedir um novo código.');
@@ -85,15 +86,25 @@ export async function startSignup(name: string, email: string, phone: string) {
     [name, email, phone, codeHash, expiresAt]
   );
 
-  // TODO produção: integrar um provedor de SMS (Zenvia, Twilio, AWS SNS...)
-  // pra mandar o código de verdade pro `phone`. Em homologação não temos
-  // gateway configurado, então devolvemos o código na própria resposta
-  // pra dar pra testar o fluxo inteiro sem depender de SMS real. Isso é
-  // desligado automaticamente quando NODE_ENV=production.
+  // Verificação do cadastro vai por e-mail agora (celular continua
+  // sendo coletado como dado de conta, só não recebe SMS — só o
+  // Resend está integrado). Erro de envio propaga pro usuário — cair
+  // silenciosamente pro devCode esconderia Resend quebrado em produção.
+  let devCode: string | undefined;
+  if (isEmailConfigured()) {
+    await sendEmail(
+      email,
+      'Seven Club — Código de verificação',
+      `<p>Seu código de verificação é <strong>${code}</strong>.</p><p>Válido por ${CODE_TTL_MINUTES} minutos.</p>`
+    );
+  } else if (!env.isProduction) {
+    devCode = code;
+  }
+
   return {
     signupId: rows[0].id,
     expiresInSeconds: CODE_TTL_MINUTES * 60,
-    devCode: env.isProduction ? undefined : code,
+    devCode,
   };
 }
 
@@ -230,8 +241,20 @@ export async function resendSignupCode(signupId: string) {
     [hashCode(code), expiresAt, signupId]
   );
 
+  let devCode: string | undefined;
+  if (isEmailConfigured()) {
+    const emailRow = await query<{ email: string }>(`SELECT email FROM signup_verifications WHERE id = $1`, [signupId]);
+    await sendEmail(
+      emailRow[0].email,
+      'Seven Club — Código de verificação',
+      `<p>Seu código de verificação é <strong>${code}</strong>.</p><p>Válido por ${CODE_TTL_MINUTES} minutos.</p>`
+    );
+  } else if (!env.isProduction) {
+    devCode = code;
+  }
+
   return {
     expiresInSeconds: CODE_TTL_MINUTES * 60,
-    devCode: env.isProduction ? undefined : code,
+    devCode,
   };
 }

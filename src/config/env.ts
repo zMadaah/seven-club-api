@@ -31,4 +31,9 @@ export const env = {
   r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY ?? '',
   r2BucketName: process.env.R2_BUCKET_NAME ?? '',
   r2PublicUrl: process.env.R2_PUBLIC_URL ?? '',
+  // Resend (e-mail) — único canal de envio de código, tanto pra
+  // verificação de cadastro quanto pra recuperação de senha. Sem a
+  // chave configurada, cai no devCode (comportamento de antes).
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  resendFromEmail: process.env.RESEND_FROM_EMAIL ?? 'Seven Club <onboarding@resend.dev>',
 };
