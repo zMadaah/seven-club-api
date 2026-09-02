@@ -3,6 +3,7 @@ import { authenticate } from '../../plugins/authenticate';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
 import { registerPushToken, sendTestNotificationToUser } from './push.service';
 import { listNotificationsForStaff } from './staff-notifications-history';
+import { getAudienceCount, broadcastToCategory, BroadcastError, AudienceCategory } from './broadcast.service';
 
 export async function pushRoutes(app: FastifyInstance) {
   // Rota do APP (usuário comum) — registra o token assim que o app abre
@@ -60,4 +61,46 @@ export async function pushRoutes(app: FastifyInstance) {
     const { page, pageSize } = request.query as { page?: string; pageSize?: string };
     return listNotificationsForStaff(Number(page) || 1, Number(pageSize) || 20);
   });
+
+  const CATEGORIES: AudienceCategory[] = ['free', 'subscriber', 'influencer', 'cancelled'];
+
+  app.get(
+    '/staff-notifications/audience-count',
+    { preHandler: authenticateStaff },
+    async (request, reply) => {
+      const { category } = request.query as { category?: string };
+      if (!CATEGORIES.includes(category as AudienceCategory)) {
+        return reply.code(400).send({ error: 'category inválida.' });
+      }
+      const count = await getAudienceCount(category as AudienceCategory);
+      return { count };
+    }
+  );
+
+  app.post(
+    '/staff-notifications/broadcast',
+    {
+      preHandler: authenticateStaff,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['category', 'title', 'body'],
+          properties: {
+            category: { type: 'string', enum: CATEGORIES },
+            title: { type: 'string', minLength: 1, maxLength: 100 },
+            body: { type: 'string', minLength: 1, maxLength: 200 },
+          },
+        },
+      },
+    },
+    async (request, reply) => {
+      const { category, title, body } = request.body as { category: AudienceCategory; title: string; body: string };
+      try {
+        return await broadcastToCategory(category, title, body);
+      } catch (err) {
+        if (err instanceof BroadcastError) return reply.code(400).send({ error: err.message });
+        throw err;
+      }
+    }
+  );
 }
