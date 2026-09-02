@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../plugins/authenticate';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
 import { registerPushToken, sendTestNotificationToUser } from './push.service';
+import { listNotificationsForStaff } from './staff-notifications-history';
 
 export async function pushRoutes(app: FastifyInstance) {
   // Rota do APP (usuário comum) — registra o token assim que o app abre
@@ -52,4 +53,11 @@ export async function pushRoutes(app: FastifyInstance) {
       }
     }
   );
+
+  // Rota do DASHBOARD (staff) — histórico agregado de notificações
+  // (de todo mundo, não só de teste) — usada pela aba Notificações.
+  app.get('/staff-notifications', { preHandler: authenticateStaff }, async (request) => {
+    const { page, pageSize } = request.query as { page?: string; pageSize?: string };
+    return listNotificationsForStaff(Number(page) || 1, Number(pageSize) || 20);
+  });
 }
