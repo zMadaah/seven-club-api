@@ -57,7 +57,8 @@ export async function getLeaderboard(
   userId: string,
   scope: LeaderboardScope,
   activityType: 'run' | 'ride',
-  lobbyId?: string
+  lobbyId?: string,
+  gender?: 'Masculino' | 'Feminino'
 ) {
   if (scope === 'lobby') {
     if (!lobbyId) throw new LeaderboardError('Escopo "lobby" exige lobbyId.');
@@ -77,6 +78,17 @@ export async function getLeaderboard(
 
   const params: (string | undefined)[] = [userId, activityType];
   if (scope === 'lobby') params.push(lobbyId);
+
+  // Filtro de gênero é opcional e sempre o ÚLTIMO parâmetro da lista —
+  // isso evita ter que recalcular os índices ($3, $4...) dos outros
+  // parâmetros conforme o escopo muda. Só faz sentido pra país/área
+  // (ranking entre indivíduos); "crew"/"lobby" competem em grupo, não
+  // tem gênero de crew.
+  let genderFilter = '';
+  if (gender && (scope === 'country' || scope === 'area')) {
+    params.push(gender);
+    genderFilter = `AND u.gender = $${params.length}`;
+  }
 
   // Cada escopo ranqueia por um critério diferente, de propósito:
   // - "país": só km percorridos. A primeira versão somava território
@@ -104,7 +116,7 @@ export async function getLeaderboard(
                 0
               ) AS distance_km
          FROM pool p
-         JOIN app_users u ON u.id = p.id
+         JOIN app_users u ON u.id = p.id ${genderFilter}
          LEFT JOIN territory_cells tc
            ON tc.owner_user_id = u.id AND tc.activity_type = $2
         GROUP BY u.id, u.display_name, u.avatar_url, u.country_code
