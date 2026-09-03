@@ -1,5 +1,5 @@
 import { pool } from '../../db/pool';
-import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary } from '../../utils/h3';
+import { cellsForLoop, cellAreaM2, cellCenter, cellBoundary, captureAreaM2ForLoop } from '../../utils/h3';
 import { LatLng } from '../../utils/geo';
 import { getTotalXp, levelFromTotalXp } from '../progress/xp.service';
 import { getCurrentSeason } from '../progress/seasons.service';
@@ -10,6 +10,12 @@ export interface CaptureResult {
   captureM2: number;
   cellsCaptured: number;
   cellsStolenFromOthers: number;
+  // Área geométrica real do loop fechado — diferente de captureM2
+  // (que só soma hexágonos NOVOS, excluindo território que já era seu).
+  // Calculada com uma grade H3 bem mais fina (resolução 13, não a 10
+  // usada pra captura em si), pra representar de verdade o formato do
+  // loop, não uma aproximação grosseira por hexágonos grandes.
+  loopAreaM2: number;
 }
 
 // Recebe o loop de uma atividade fechada e decide, célula por célula,
@@ -26,7 +32,7 @@ export async function captureTerritoryForActivity(params: {
 
   const cells = cellsForLoop(points);
   if (cells.length === 0) {
-    return { captureM2: 0, cellsCaptured: 0, cellsStolenFromOthers: 0 };
+    return { captureM2: 0, cellsCaptured: 0, cellsStolenFromOthers: 0, loopAreaM2: 0 };
   }
 
   const season = await getCurrentSeason();
@@ -119,7 +125,9 @@ export async function captureTerritoryForActivity(params: {
     }
   }
 
-  return { captureM2, cellsCaptured, cellsStolenFromOthers };
+  const loopAreaM2 = captureAreaM2ForLoop(points);
+
+  return { captureM2, cellsCaptured, cellsStolenFromOthers, loopAreaM2 };
 }
 
 // Mensagem varia conforme quanto foi perdido — "1 hexágono" no

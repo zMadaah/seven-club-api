@@ -48,10 +48,12 @@ export async function submitActivity(input: SubmitActivityInput) {
 
   const activityId = rows[0].id as string;
   let captureM2 = 0;
+  let loopAreaM2 = 0;
 
   if (loopClosed) {
     const result = await captureTerritoryForActivity({ activityId, userId, activityType, points });
     captureM2 = result.captureM2;
+    loopAreaM2 = result.loopAreaM2;
 
     await pool.query(`UPDATE activities SET capture_m2 = $1 WHERE id = $2`, [captureM2, activityId]);
     await pool.query(
@@ -95,6 +97,7 @@ export async function submitActivity(input: SubmitActivityInput) {
     paceLabel: formatPace(avgPaceSecPerKm),
     loopClosed,
     captureM2,
+    loopAreaM2,
     createdAt: rows[0].created_at,
   };
 }
