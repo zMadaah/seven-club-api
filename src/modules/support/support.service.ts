@@ -7,6 +7,7 @@ interface MessageRow {
   ticket_id: string;
   sender_type: 'user' | 'staff';
   body: string;
+  image_url: string | null;
   created_at: string;
 }
 
@@ -16,6 +17,7 @@ function mapMessage(row: MessageRow) {
     ticketId: row.ticket_id,
     sender: row.sender_type,
     text: row.body,
+    imageUrl: row.image_url,
     createdAt: row.created_at,
   };
 }
@@ -40,14 +42,17 @@ async function getOrCreateOpenTicket(userId: string): Promise<string> {
   return created[0].id;
 }
 
-export async function sendSupportMessage(userId: string, text: string) {
+// text pode vir vazio SE imageUrl existir (manda só a imagem, sem
+// legenda) — mas não os dois vazios ao mesmo tempo, isso é validado na
+// rota (schema), não aqui.
+export async function sendSupportMessage(userId: string, text: string, imageUrl?: string) {
   const ticketId = await getOrCreateOpenTicket(userId);
 
   const rows = await query<MessageRow>(
-    `INSERT INTO support_messages (ticket_id, sender_type, sender_id, body)
-     VALUES ($1, 'user', $2, $3)
-     RETURNING id, ticket_id, sender_type, body, created_at`,
-    [ticketId, userId, text]
+    `INSERT INTO support_messages (ticket_id, sender_type, sender_id, body, image_url)
+     VALUES ($1, 'user', $2, $3, $4)
+     RETURNING id, ticket_id, sender_type, body, image_url, created_at`,
+    [ticketId, userId, text, imageUrl ?? null]
   );
 
   // "new" — mensagem do usuário sinaliza que precisa de atenção do staff.
@@ -67,7 +72,7 @@ export async function listMyMessages(userId: string) {
   if (ticketRows.length === 0) return [];
 
   const rows = await query<MessageRow>(
-    `SELECT id, ticket_id, sender_type, body, created_at
+    `SELECT id, ticket_id, sender_type, body, image_url, created_at
        FROM support_messages
       WHERE ticket_id = $1
       ORDER BY created_at ASC`,
@@ -141,7 +146,7 @@ export async function listTicketsForStaff(params: { status?: string; page: numbe
 
 export async function listTicketMessagesForStaff(ticketId: string) {
   const rows = await query<MessageRow & { sender_id: string | null }>(
-    `SELECT id, ticket_id, sender_type, sender_id, body, created_at
+    `SELECT id, ticket_id, sender_type, sender_id, body, image_url, created_at
        FROM support_messages
       WHERE ticket_id = $1
       ORDER BY created_at ASC`,
@@ -154,19 +159,20 @@ export async function listTicketMessagesForStaff(ticketId: string) {
     sender: r.sender_type,
     staff_id: r.sender_type === 'staff' ? r.sender_id : null,
     message: r.body,
+    image_url: r.image_url,
     created_at: r.created_at,
   }));
 }
 
-export async function sendStaffMessage(staffId: string, ticketId: string, message: string) {
+export async function sendStaffMessage(staffId: string, ticketId: string, message: string, imageUrl?: string) {
   const ticketExists = await query(`SELECT id FROM support_tickets WHERE id = $1`, [ticketId]);
   if (ticketExists.length === 0) throw new SupportError('Ticket não encontrado.');
 
   const rows = await query<MessageRow & { sender_id: string | null }>(
-    `INSERT INTO support_messages (ticket_id, sender_type, sender_id, body)
-     VALUES ($1, 'staff', $2, $3)
-     RETURNING id, ticket_id, sender_type, sender_id, body, created_at`,
-    [ticketId, staffId, message]
+    `INSERT INTO support_messages (ticket_id, sender_type, sender_id, body, image_url)
+     VALUES ($1, 'staff', $2, $3, $4)
+     RETURNING id, ticket_id, sender_type, sender_id, body, image_url, created_at`,
+    [ticketId, staffId, message, imageUrl ?? null]
   );
 
   await query(`UPDATE support_tickets SET status = 'in_progress', updated_at = now() WHERE id = $1`, [
@@ -180,6 +186,7 @@ export async function sendStaffMessage(staffId: string, ticketId: string, messag
     sender: r.sender_type,
     staff_id: r.sender_id,
     message: r.body,
+    image_url: r.image_url,
     created_at: r.created_at,
   };
 }

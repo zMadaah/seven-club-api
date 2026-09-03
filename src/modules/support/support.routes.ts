@@ -24,13 +24,20 @@ export async function supportRoutes(app: FastifyInstance) {
     schema: {
       body: {
         type: 'object',
-        required: ['text'],
-        properties: { text: { type: 'string', minLength: 1, maxLength: 2000 } },
+        properties: {
+          text: { type: 'string', maxLength: 2000 },
+          imageUrl: { type: 'string', maxLength: 1000 },
+        },
       },
     },
   }, async (request, reply) => {
-    const { text } = request.body as any;
-    const message = await sendSupportMessage(request.userId!, text);
+    const { text, imageUrl } = request.body as { text?: string; imageUrl?: string };
+    // Precisa de pelo menos um dos dois — mensagem vazia sem imagem não
+    // faz sentido enviar.
+    if (!text?.trim() && !imageUrl) {
+      return reply.code(400).send({ error: 'Escreva uma mensagem ou anexe uma imagem.' });
+    }
+    const message = await sendSupportMessage(request.userId!, text?.trim() ?? '', imageUrl);
     return reply.code(201).send(message);
   });
 }
@@ -62,18 +69,21 @@ export async function supportStaffRoutes(app: FastifyInstance) {
     schema: {
       body: {
         type: 'object',
-        required: ['message'],
         properties: {
           sender: { type: 'string' }, // aceito mas ignorado — quem manda é sempre o staff logado
-          message: { type: 'string', minLength: 1, maxLength: 2000 },
+          message: { type: 'string', maxLength: 2000 },
+          imageUrl: { type: 'string', maxLength: 1000 },
         },
       },
     },
   }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { message } = request.body as any;
+    const { message, imageUrl } = request.body as { message?: string; imageUrl?: string };
+    if (!message?.trim() && !imageUrl) {
+      return reply.code(400).send({ error: 'Escreva uma mensagem ou anexe uma imagem.' });
+    }
     try {
-      const sent = await sendStaffMessage(request.staffId!, id, message);
+      const sent = await sendStaffMessage(request.staffId!, id, message?.trim() ?? '', imageUrl);
       return reply.code(201).send(sent);
     } catch (err) {
       if (err instanceof SupportError) return reply.code(404).send({ error: err.message });
