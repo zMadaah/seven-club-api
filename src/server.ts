@@ -32,6 +32,7 @@ import { staffUsersRoutes } from './modules/staff-users/staff-users.routes';
 import { staffAnalyticsRoutes } from './modules/staff-analytics/staff-analytics.routes';
 import { eventsRoutes } from './modules/events/events.routes';
 import { pushRoutes } from './modules/notifications-push/push.routes';
+import { staffPushRoutes } from './modules/notifications-push/staff-push.routes';
 import { uploadsRoutes } from './modules/uploads/uploads.routes';
 import { notificationsRoutes } from './modules/notifications/notifications.routes';
 
@@ -47,54 +48,72 @@ async function main() {
   const corsOrigin = env.corsOrigin === '*' ? true : env.corsOrigin.split(',').map((o) => o.trim());
   await app.register(cors, { origin: corsOrigin });
 
-  // Rate limit global — teto de segurança pra API inteira não cair sob
-  // carga (ataque, bug de retry no app, pico de lançamento etc.). Rotas
-  // sensíveis (login, signup, upload) têm limites mais apertados
-  // definidos na própria rota, que somam a este.
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-    errorResponseBuilder: (_request, context) => ({
-      error: `Muitas requisições. Tente novamente em ${context.after}.`,
-    }),
-  });
-
   await app.register(multipart);
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  await app.register(authRoutes);
-  await app.register(signupRoutes);
-  await app.register(passwordResetRoutes);
-  await app.register(activitiesRoutes);
-  await app.register(territoryRoutes);
-  await app.register(statsRoutes);
-  await app.register(savedRoutesRoutes);
-  await app.register(postsRoutes);
-  await app.register(followsRoutes);
-  await app.register(leaderboardRoutes);
-  await app.register(lobbiesRoutes);
-  await app.register(lobbyChatRoutes);
-  await app.register(crewsRoutes);
-  await app.register(crewChatRoutes);
-  await app.register(subscriptionsRoutes);
-  await app.register(staffPaymentsRoutes);
-  await app.register(staffSeasonsRoutes);
-  await app.register(reportsRoutes);
-  await app.register(staffReportsRoutes);
-  await app.register(asaasWebhookRoutes);
-  await app.register(blocksRoutes);
-  await app.register(referralsRoutes);
-  await app.register(supportRoutes);
-  await app.register(supportStaffRoutes);
-  await app.register(progressRoutes);
-  await app.register(staffAuthRoutes);
-  await app.register(staffUsersRoutes);
-  await app.register(staffAnalyticsRoutes);
-  await app.register(eventsRoutes);
-  await app.register(pushRoutes);
-  await app.register(uploadsRoutes);
-  await app.register(notificationsRoutes);
+  const rateLimitErrorBuilder = (_request: unknown, context: { after: string }) => ({
+    error: `Muitas requisições. Tente novamente em ${context.after}.`,
+  });
+
+  // Rate limit do APP (usuários finais) e do DASHBOARD (staff) — dois
+  // "baldes" completamente independentes agora, cada um dentro do seu
+  // próprio escopo Fastify encapsulado. Antes era um balde global só,
+  // compartilhado por todo mundo que batesse na API — o que significa
+  // que atividade do dashboard (polling do chat de suporte, por
+  // exemplo) numa rede compartilhada (Wi-Fi de escritório) podia
+  // consumir o mesmo limite que um usuário testando o app na mesma
+  // rede, bloqueando os dois sem relação real entre eles.
+  await app.register(async function appScope(instance) {
+    await instance.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+      errorResponseBuilder: rateLimitErrorBuilder,
+    });
+
+    await instance.register(authRoutes);
+    await instance.register(signupRoutes);
+    await instance.register(passwordResetRoutes);
+    await instance.register(activitiesRoutes);
+    await instance.register(territoryRoutes);
+    await instance.register(statsRoutes);
+    await instance.register(savedRoutesRoutes);
+    await instance.register(postsRoutes);
+    await instance.register(followsRoutes);
+    await instance.register(leaderboardRoutes);
+    await instance.register(lobbiesRoutes);
+    await instance.register(lobbyChatRoutes);
+    await instance.register(crewsRoutes);
+    await instance.register(crewChatRoutes);
+    await instance.register(subscriptionsRoutes);
+    await instance.register(reportsRoutes);
+    await instance.register(asaasWebhookRoutes);
+    await instance.register(blocksRoutes);
+    await instance.register(referralsRoutes);
+    await instance.register(supportRoutes);
+    await instance.register(progressRoutes);
+    await instance.register(pushRoutes);
+    await instance.register(uploadsRoutes);
+    await instance.register(notificationsRoutes);
+  });
+
+  await app.register(async function staffScope(instance) {
+    await instance.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+      errorResponseBuilder: rateLimitErrorBuilder,
+    });
+
+    await instance.register(staffPaymentsRoutes);
+    await instance.register(staffSeasonsRoutes);
+    await instance.register(staffReportsRoutes);
+    await instance.register(supportStaffRoutes);
+    await instance.register(staffAuthRoutes);
+    await instance.register(staffUsersRoutes);
+    await instance.register(staffAnalyticsRoutes);
+    await instance.register(eventsRoutes);
+    await instance.register(staffPushRoutes);
+  });
 
   await app.listen({ port: env.port, host: '0.0.0.0' });
 }
