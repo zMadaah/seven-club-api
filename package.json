@@ -23,9 +23,9 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/jsonwebtoken": "^9.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.43",
-    "@types/pg": "^8.11.6",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   }
