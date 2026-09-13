@@ -11,6 +11,12 @@ async function asaasRequest<T>(path: string, options: RequestInit = {}): Promise
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      // Obrigatório pra contas raiz da Asaas criadas a partir de
+      // 13/06/2024 — sem isso, a requisição falha. Não sabíamos a data
+      // de criação da conta de produção de vocês, então adicionamos
+      // por segurança (não tem custo nenhum ter isso mesmo em contas
+      // mais antigas que não exigem).
+      'User-Agent': 'SevenClub',
       access_token: env.asaasApiKey,
       ...options.headers,
     },
