@@ -1,13 +1,16 @@
 import { FastifyInstance } from 'fastify';
 import { authenticateStaff } from '../../plugins/authenticateStaff';
 import { registerStaff, loginStaff, getStaffMe, deleteStaff, StaffAuthError } from './staff-auth.service';
+import { env } from '../../config/env';
 
 export async function staffAuthRoutes(app: FastifyInstance) {
-  // ATENÇÃO — sem proteção nenhuma além do rate limit: qualquer um que
-  // souber a URL consegue criar uma conta de staff. É assim de propósito
-  // pra testar em homologação sem burocracia. ANTES DE PRODUÇÃO: proteja
-  // essa rota (feature flag, IP allowlist) ou remova e crie contas de
-  // staff só via SQL direto no banco.
+  // Antes: sem proteção nenhuma além do rate limit — qualquer um que
+  // soubesse a URL conseguia criar conta de staff pra si mesmo. Agora,
+  // se STAFF_REGISTER_SECRET estiver configurado no ambiente, a rota
+  // exige esse valor no corpo da requisição (registerSecret) — sem
+  // ele, exatamente como antes (fica aberta), pra não quebrar
+  // homologação sem querer caso essa variável não esteja configurada
+  // lá.
   app.post('/auth/staff/register', {
     config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
     schema: {
@@ -18,11 +21,17 @@ export async function staffAuthRoutes(app: FastifyInstance) {
           email: { type: 'string', format: 'email' },
           password: { type: 'string', minLength: 8 },
           name: { type: 'string', minLength: 1, maxLength: 100 },
+          registerSecret: { type: 'string' },
         },
       },
     },
   }, async (request, reply) => {
-    const { email, password, name } = request.body as any;
+    const { email, password, name, registerSecret } = request.body as any;
+
+    if (env.staffRegisterSecret && registerSecret !== env.staffRegisterSecret) {
+      return reply.code(403).send({ error: 'Chave de registro inválida.' });
+    }
+
     try {
       const session = await registerStaff(email, password, name);
       return reply.code(201).send(session);

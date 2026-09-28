@@ -36,4 +36,7 @@ export const env = {
   // chave configurada, cai no devCode (comportamento de antes).
   resendApiKey: process.env.RESEND_API_KEY ?? '',
   resendFromEmail: process.env.RESEND_FROM_EMAIL ?? 'Seven Club <onboarding@resend.dev>',
+  // ID (UUID) da conta do fundador em cada ambiente. Aparece como sugestão
+  // fixa de "quem seguir" pra todo mundo. Vazio = sem sugestão de fundador.
+  founderUserId: (process.env.FOUNDER_USER_ID ?? '').trim().toLowerCase(),
 };
