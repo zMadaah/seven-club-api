@@ -39,4 +39,5 @@ export const env = {
   // ID (UUID) da conta do fundador em cada ambiente. Aparece como sugestão
   // fixa de "quem seguir" pra todo mundo. Vazio = sem sugestão de fundador.
   founderUserId: (process.env.FOUNDER_USER_ID ?? '').trim().toLowerCase(),
+  staffRegisterSecret: process.env.STAFF_REGISTER_SECRET ?? '',
 };
