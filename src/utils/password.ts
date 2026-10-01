@@ -18,6 +18,7 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
 export function validatePasswordStrength(password: string): string | null {
   if (password.length < 6) return 'A senha precisa ter pelo menos 6 caracteres.';
   if (!/[A-Z]/.test(password)) return 'A senha precisa ter pelo menos 1 letra maiúscula.';
+  if (!/[0-9]/.test(password)) return 'A senha precisa ter pelo menos 1 número.';
   if (!/[^A-Za-z0-9]/.test(password)) return 'A senha precisa ter pelo menos 1 caractere especial.';
   return null;
 }
